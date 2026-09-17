@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0f1218">
+  <title>OpenCall Local</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app" class="app-shell auth-locked">
+    <aside class="server-rail">
+      <button id="homeButton" class="server-bubble brand" title="Início / Amigos">OC</button>
+      <div class="rail-line"></div>
+      <div id="guildRail" class="guild-rail-list"></div>
+      <button id="createGuildButton" class="server-bubble add" title="Criar ou entrar em um servidor" aria-label="Criar ou entrar em um servidor">＋</button>
+      <div class="rail-spacer"></div>
+      <button id="openSettingsRail" class="server-bubble" title="Configurações">⚙</button>
+    </aside>
+
+    <aside class="sidebar">
+      <header class="workspace-header">
+        <div class="workspace-title-wrap">
+          <strong id="guildName">OpenCall</strong>
+          <span id="connectionStatus">desconectado</span>
+        </div>
+        <span id="guildMenuButton" hidden></span>
+      </header>
+
+      <div id="guildSidebarContent" class="sidebar-mode-content guild-sidebar-content">
+        <div class="sidebar-search-wrap">
+          <button id="globalSearchButton" class="sidebar-search">🔎 <span>Buscar mensagens</span></button>
+        </div>
+        <nav id="channelTree" class="channel-tree"></nav>
+      </div>
+
+      <div id="homeSidebarContent" class="sidebar-mode-content home-sidebar-content hidden">
+        <div class="sidebar-search-wrap">
+          <button id="homeDmSearchButton" class="sidebar-search">🔎 <span>Encontre ou comece uma conversa</span></button>
+        </div>
+        <nav class="home-nav">
+          <button id="friendsButton" class="dm-row friends-entry" type="button"><span>👥</span><span>Amigos</span><span id="friendRequestBadge" class="unread-badge hidden"></span></button>
+          <button id="pendingFriendsButton" class="dm-row" type="button"><span>✉</span><span>Solicitações</span><span id="pendingFriendsCount" class="home-nav-count hidden"></span></button>
+        </nav>
+        <section class="dm-section home-dm-section">
+          <div class="section-label"><span>MENSAGENS DIRETAS</span><button id="newDmButton" title="Nova mensagem direta">＋</button></div>
+          <div id="dmList" class="dm-list"></div>
+        </section>
+      </div>
+
+      <section id="voiceMiniPanel" class="voice-mini-panel hidden">
+        <div class="voice-mini-copy"><strong>Voz conectada</strong><span id="voiceMiniChannel">—</span></div>
+        <div class="voice-mini-actions">
+          <button id="miniMuteButton" title="Microfone">🎙</button>
+          <button id="miniDeafenButton" title="Áudio">🎧</button>
+          <button id="miniLeaveButton" class="danger" title="Sair">☎</button>
+        </div>
+      </section>
+
+      <footer class="user-panel">
+        <button id="selfAvatar" class="avatar large" title="Perfil"><span>?</span></button>
+        <div class="user-panel-copy"><strong id="selfName">Sem conta</strong><span id="selfStatus">offline</span></div>
+        <button id="selfMuteButton" class="icon-btn" title="Microfone">🎙</button>
+        <button id="selfDeafenButton" class="icon-btn" title="Áudio">🎧</button>
+        <button id="openSettingsButton" class="icon-btn" title="Configurações">⚙</button>
+      </footer>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-title">
+          <span id="viewIcon" class="view-icon">#</span>
+          <div><strong id="viewTitle">geral</strong><span id="viewSubtitle">Conecte ao servidor</span></div>
+        </div>
+        <div class="topbar-actions">
+          <button id="dmVoiceCallButton" class="toolbar-btn hidden" title="Ligar nesta DM">☎</button>
+          <button id="dmVideoCallButton" class="toolbar-btn hidden" title="Iniciar chamada com vídeo">📷</button>
+          <button id="dmScreenCallButton" class="toolbar-btn hidden" title="Compartilhar tela nesta DM">▣</button>
+          <button id="dmOpenCallButton" class="toolbar-btn hidden active-call" title="Voltar para a chamada">🎙</button>
+          <button id="notificationButton" class="toolbar-btn" title="Notificações">🔔</button>
+          <button id="pinsButton" class="toolbar-btn hidden" title="Fixadas">📌</button>
+          <button id="membersToggleButton" class="toolbar-btn" title="Membros">👥</button>
+          <button id="adminButton" class="toolbar-btn hidden" title="Administração">🛡</button>
+          <button id="reconnectButton" class="toolbar-btn" title="Reconectar">↻</button>
+        </div>
+      </header>
+
+      <section id="friendsView" class="view friends-home-view hidden">
+        <div class="friends-home-tabs">
+          <strong class="friends-home-label">👥 Amigos</strong>
+          <button id="friendsTabOnline" class="friends-home-tab" type="button">Online</button>
+          <button id="friendsTabAll" class="friends-home-tab active" type="button">Todos</button>
+          <button id="friendsTabPending" class="friends-home-tab" type="button">Pendentes <span id="friendsPendingBadge" class="friends-tab-badge hidden"></span></button>
+          <button id="friendsTabAdd" class="friends-home-tab add-friend" type="button">Adicionar amigo</button>
+        </div>
+        <div class="friends-home-body">
+          <div id="friendsBrowsePanel" class="friends-browse-panel">
+            <div class="friends-filter-wrap"><input id="friendsListSearch" type="search" placeholder="Buscar amigos" autocomplete="off"><span>⌕</span></div>
+            <div id="friendsHomeHeading" class="friends-list-heading">TODOS — 0</div>
+            <div id="friendsHomeList" class="friends-home-list"></div>
+          </div>
+          <div id="friendsHomeSearchPanel" class="friends-add-panel hidden">
+            <h2>Adicionar amigo</h2>
+            <p>Você pode adicionar alguém usando o identificador público <b>Nome#0000</b>.</p>
+            <form id="friendsHomeSearchForm" class="friends-home-search-form">
+              <input id="friendsHomeSearchInput" maxlength="80" placeholder="Ex.: Pedro#0007" autocomplete="off">
+              <button class="primary-btn" type="submit">Enviar pedido</button>
+            </form>
+            <div id="friendsHomeSearchResult" class="friends-home-search-result"><div class="friend-empty">Digite o Nome#0000 exato da pessoa.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="chatView" class="view chat-view">
+        <div id="messageScroller" class="message-scroller">
+          <div id="channelWelcome" class="channel-welcome">
+            <div class="channel-welcome-icon">#</div>
+            <h1 id="welcomeTitle">Bem-vindo</h1>
+            <p id="welcomeText">Selecione um canal.</p>
+          </div>
+          <div id="messageList" class="message-list"></div>
+        </div>
+
+        <div class="composer-shell">
+          <div id="replyBar" class="reply-bar hidden"><span id="replyText"></span><button id="cancelReplyButton">×</button></div>
+          <div id="uploadTray" class="upload-tray hidden"></div>
+          <div id="typingText" class="typing-text"></div>
+          <form id="chatForm" class="composer">
+            <div class="composer-left">
+              <button id="attachButton" type="button" class="composer-btn" title="Anexar arquivo">＋</button>
+              <button id="screenshotButton" type="button" class="composer-btn compact" title="Capturar print">▣</button>
+            </div>
+            <textarea id="chatInput" rows="1" maxlength="4000" placeholder="Mensagem"></textarea>
+            <div class="composer-right">
+              <button id="emojiButton" type="button" class="composer-btn" title="Emoji">☺</button>
+              <button id="gifButton" type="button" class="composer-btn gif" title="GIF local">GIF</button>
+              <button id="sendButton" class="send-btn" type="submit" title="Enviar">➜</button>
+            </div>
+          </form>
+          <div class="composer-foot"><span id="composeHint">Enter envia · Shift+Enter quebra linha</span><span id="messageCounter">0/4000</span></div>
+          <div id="emojiPicker" class="emoji-picker hidden"></div>
+        </div>
+      </section>
+
+      <section id="callView" class="view call-view hidden">
+        <div id="callStage" class="call-stage">
+          <div id="pinnedStreamPanel" class="pinned-stream hidden">
+            <video id="remoteScreenVideo" autoplay playsinline></video>
+            <div class="stream-overlay"><span class="live-dot"></span><strong id="streamOwnerLabel">AO VIVO</strong><span id="streamStateLabel"></span></div>
+            <div class="stream-top-actions">
+              <button id="fullscreenStreamButton" class="stream-top-button hidden" type="button" title="Tela cheia" aria-label="Tela cheia">⛶</button>
+              <button id="closePinnedStream" class="stream-top-button close-stream" type="button" title="Fechar transmissão" aria-label="Fechar transmissão">×</button>
+            </div>
+            <div id="localScreenPreviewWrap" class="local-screen-preview hidden">
+              <video id="localScreenPreview" autoplay playsinline muted></video>
+              <button id="hideLocalPreviewButton">×</button>
+            </div>
+          </div>
+          <div id="voiceGrid" class="voice-grid"></div>
+          <div id="callEmpty" class="call-empty">
+            <div class="call-empty-icon">🎙</div>
+            <h2>Entre no canal de voz</h2>
+            <p>Voz, câmera e compartilhamento de tela ficam no seu servidor.</p>
+            <button id="joinVoiceButton" class="primary-btn">Entrar</button>
+          </div>
+        </div>
+        <footer id="callControls" class="call-controls">
+          <button id="callMuteButton" class="call-btn"><span>🎙</span><small>Microfone</small></button>
+          <button id="callDeafenButton" class="call-btn"><span>🎧</span><small>Áudio</small></button>
+          <button id="cameraButton" class="call-btn"><span>📷</span><small>Câmera</small></button>
+          <button id="screenShareButton" class="call-btn"><span>▣</span><small>Tela</small></button>
+          <button id="callLeaveButton" class="call-btn danger"><span>☎</span><small>Sair</small></button>
+        </footer>
+      </section>
+
+      <section id="dmView" class="view chat-view hidden">
+        <div id="dmCallHost" class="dm-call-host hidden" aria-label="Chamada privada ativa"></div>
+        <div id="dmScroller" class="message-scroller"><div id="dmMessageList" class="message-list"></div></div>
+        <div class="composer-shell">
+          <div id="dmReplyBar" class="reply-bar hidden"></div>
+          <div id="dmUploadTray" class="upload-tray hidden"></div>
+          <form id="dmForm" class="composer">
+            <div class="composer-left"><button id="dmAttachButton" type="button" class="composer-btn" title="Anexar arquivo">＋</button></div>
+            <textarea id="dmInput" rows="1" maxlength="4000" placeholder="Mensagem direta"></textarea>
+            <div class="composer-right"><button id="dmEmojiButton" type="button" class="composer-btn" title="Emoji">☺</button><button id="dmGifButton" type="button" class="composer-btn gif" title="GIF local">GIF</button><button class="send-btn" type="submit" title="Enviar">➜</button></div>
+          </form>
+          <div class="composer-foot"><span>Enter envia · Shift+Enter quebra linha</span><span>Privado</span></div>
+          <div id="dmEmojiPicker" class="emoji-picker hidden"></div>
+        </div>
+      </section>
+    </main>
+
+    <aside id="memberPanel" class="member-panel">
+      <header><strong>Membros</strong><span id="memberCount">0</span></header>
+      <div id="memberList" class="member-list"></div>
+    </aside>
+  </div>
+
+  <div id="dropOverlay" class="drop-overlay hidden"><strong>Solte os arquivos aqui</strong><span>até 10 GB por arquivo</span></div>
+  <div id="toastStack" class="toast-stack"></div>
+  <input id="filePicker" type="file" multiple hidden>
+  <input id="editMessageFilePicker" type="file" multiple hidden>
+  <input id="gifPicker" type="file" accept="image/gif" hidden>
+  <input id="avatarPicker" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+  <dialog id="dmIncomingCallDialog" class="modal small-modal dm-call-incoming-modal">
+    <div class="modal-head"><div><strong>Chamada privada</strong><span id="dmIncomingCallSubtitle">Alguém está ligando para você</span></div></div>
+    <div class="modal-body dm-call-incoming-body">
+      <div class="dm-call-incoming-icon">☎</div>
+      <strong id="dmIncomingCallName">Chamada recebida</strong>
+      <span id="dmIncomingCallInfo">Mensagem direta</span>
+      <div class="dialog-actions dm-call-incoming-actions">
+        <button id="dmIncomingCallDecline" class="danger-btn" type="button">Recusar</button>
+        <button id="dmIncomingCallAccept" class="primary-btn" type="button">Aceitar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="imageViewerDialog" class="image-viewer-dialog">
+    <div class="image-viewer-head">
+      <div class="image-viewer-copy"><strong id="imageViewerTitle">Imagem</strong><span id="imageViewerMeta"></span></div>
+      <div class="image-viewer-actions">
+        <a id="imageViewerDownload" class="image-viewer-action" href="#" download title="Baixar imagem">↓</a>
+        <button id="imageViewerClose" class="image-viewer-close" type="button" title="Fechar">×</button>
+      </div>
+    </div>
+    <div class="image-viewer-stage">
+      <img id="imageViewerImage" alt="Imagem aberta no OpenCall">
+    </div>
+  </dialog>
+
+  <dialog id="videoViewerDialog" class="video-viewer-dialog">
+    <div class="video-viewer-head">
+      <div class="video-viewer-copy"><strong id="videoViewerTitle">Vídeo</strong><span id="videoViewerMeta"></span></div>
+      <div class="video-viewer-actions">
+        <button id="videoViewerDownload" class="video-viewer-action" type="button" title="Baixar vídeo">↓</button>
+        <button id="videoViewerClose" class="video-viewer-close" type="button" title="Fechar">×</button>
+      </div>
+    </div>
+    <div class="video-viewer-stage">
+      <video id="videoViewerVideo" controls playsinline preload="metadata"></video>
+    </div>
+  </dialog>
+
+  <dialog id="streamSetupDialog" class="modal small-modal stream-setup-modal">
+    <div class="modal-head"><div><strong>Configurar transmissão</strong><span>Escolha qualidade e áudio antes de selecionar a tela ou janela</span></div><button id="streamSetupCancel" class="modal-close" type="button">×</button></div>
+    <form id="streamSetupForm" class="modal-body form-grid">
+      <div class="stream-settings-grid">
+        <label>Resolução<select id="streamSetupResolution"><option value="720p">720p · 1280×720</option><option value="1080p">1080p · 1920×1080</option><option value="1440p">1440p / 2K · 2560×1440</option><option value="2160p">4K · 3840×2160</option></select></label>
+        <label>FPS<input id="streamSetupFps" type="number" min="1" max="120" step="1" value="60" list="streamFpsSuggestions"></label>
+        <label>Bitrate (Mbps)<input id="streamSetupBitrate" type="number" min="0.5" max="100" step="0.5" value="8" list="streamBitrateSuggestions"></label>
+      </div>
+      <label>Prioridade da transmissão<select id="streamSetupQualityMode"><option value="quality">Qualidade máxima · mantém resolução</option><option value="balanced">Equilibrado</option><option value="smooth">Fluidez · mantém FPS</option></select></label>
+      <datalist id="streamFpsSuggestions"><option value="30"><option value="35"><option value="45"><option value="60"><option value="75"><option value="90"><option value="120"></datalist>
+      <datalist id="streamBitrateSuggestions"><option value="2.5"><option value="5"><option value="8"><option value="10"><option value="15"><option value="20"><option value="35"><option value="50"><option value="80"></datalist>
+      <label class="check-label"><input id="streamSetupAudio" type="checkbox" checked> Compartilhar áudio do sistema</label>
+      <div class="stream-setup-summary"><strong>Configuração</strong><span id="streamSetupSummary">—</span></div>
+      <button class="primary-btn" type="submit">Escolher tela / janela</button>
+    </form>
+  </dialog>
+
+  <dialog id="desktopSourceDialog" class="modal source-picker-modal">
+    <div class="modal-head"><div><strong>Compartilhar tela</strong><span>Escolha um monitor ou janela</span></div><button id="desktopSourceCancel" class="modal-close">×</button></div>
+    <div class="source-picker-toolbar"><button id="desktopSourceRefresh" class="secondary-btn">Atualizar</button><span id="desktopSourceHint">Selecione uma fonte para continuar.</span></div>
+    <div id="shareAudioOptions" class="share-audio-options">
+      <label class="share-audio-toggle"><input id="shareSystemAudioToggle" type="checkbox" checked><span><strong>Compartilhar áudio do sistema</strong><small>Jogo, navegador, música e outros aplicativos.</small></span></label>
+      <div id="shareAudioIsolationStatus" class="share-audio-status"><span class="status-dot"></span><span>A voz do OpenCall será excluída da transmissão quando o isolamento estiver disponível.</span></div>
+    </div>
+    <div id="desktopSourceGrid" class="source-picker-grid"></div>
+  </dialog>
+
+  <div id="guildContextMenu" class="guild-context-menu hidden" role="menu" aria-hidden="true"></div>
+
+  <dialog id="authDialog" class="modal auth-modal">
+    <div class="modal-head"><div><strong>OpenCall</strong><span>Conta do servidor de conexão</span></div></div>
+    <div class="auth-connection-card"><div><span>Conectando em</span><strong id="authConnectionName">Servidor atual</strong><small id="authConnectionUrl">—</small></div><button id="authChangeConnectionButton" class="secondary-btn" type="button">Trocar servidor</button></div>
+    <div class="auth-tabs"><button id="loginTab" class="active">Entrar</button><button id="registerTab">Criar conta</button></div>
+    <form id="authForm" class="modal-body form-grid">
+      <label id="displayNameField" class="hidden">Nome exibido<input id="authDisplayName" maxlength="64" autocomplete="nickname"></label>
+      <label>Usuário<input id="authUsername" minlength="3" maxlength="32" autocomplete="username" required></label>
+      <label>Senha<input id="authPassword" type="password" minlength="6" autocomplete="current-password" required></label>
+      <div id="authError" class="form-error"></div>
+      <button id="authSubmit" class="primary-btn" type="submit">Entrar</button>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog" class="modal settings-modal">
+    <div class="modal-head"><div><strong>Configurações</strong><span>Cliente OpenCall</span></div><button class="modal-close" data-close="settingsDialog">×</button></div>
+    <div class="settings-layout">
+      <nav class="settings-nav">
+        <button class="settings-tab active" data-tab="profile">Perfil</button>
+        <button class="settings-tab" data-tab="tutorial">Tutorial</button>
+        <button class="settings-tab" data-tab="audio">Áudio</button>
+        <button class="settings-tab" data-tab="video">Vídeo</button>
+        <button id="desktopSettingsTab" class="settings-tab" data-tab="desktop">Desktop / GPU</button>
+        <button class="settings-tab" data-tab="notifications">Notificações</button>
+        <button class="settings-tab" data-tab="servers">Servidores</button>
+        <button class="settings-tab" data-tab="connection">Conexão avançada</button>
+        <button class="settings-tab" data-tab="account">Conta</button>
+      </nav>
+      <div class="settings-content">
+        <section class="settings-page tutorial-page" data-page="tutorial">
+          <h2>Tutorial</h2>
+          <div class="tutorial-intro">
+            <strong>Conexão e servidores não são a mesma coisa</strong>
+            <p>O OpenCall possui um <b>servidor de conexão</b> (o computador/host que guarda contas, amigos, mensagens e comunidades) e, dentro dele, podem existir vários <b>servidores/comunidades</b> do OpenCall.</p>
+          </div>
+          <div class="tutorial-flow" aria-label="Fluxo de conexão">
+            <span>Seu OpenCall</span><b>→</b><span>Servidor de conexão</span><b>→</b><span>Comunidades / servidores internos</span>
+          </div>
+          <div class="tutorial-step">
+            <span class="tutorial-step-number">1</span>
+            <div><strong>Servidor público padrão</strong><p>Ao instalar o OpenCall, você entra pela conexão pública abaixo. É nela que sua conta, seu ID, seus amigos e suas DMs são criados.</p><code>wss://2d-instalacoes.tailc76287.ts.net:8443/ws</code></div>
+          </div>
+          <div class="tutorial-step">
+            <span class="tutorial-step-number">2</span>
+            <div><strong>Adicione todos os servidores que você usa</strong><p>Abra <b>Configurações → Servidores</b>. Salve, por exemplo, o seu servidor de Rio Grande e o servidor de um amigo em São Paulo. Depois basta escolher <b>Conectar</b>, sem redigitar IP ou domínio.</p><p>Exemplos: <code>ws://192.168.1.50:8765/ws</code> na rede local ou <code>wss://seu-dominio:8443/ws</code> pela internet.</p></div>
+          </div>
+          <div class="tutorial-step">
+            <span class="tutorial-step-number">3</span>
+            <div><strong>Trocar comunidade não troca a conexão</strong><p>Os círculos de servidores na barra esquerda são comunidades hospedadas <b>dentro da conexão atual</b>. Entrar em outra comunidade ali não altera o endereço de conexão.</p></div>
+          </div>
+          <div class="tutorial-step tutorial-warning">
+            <span class="tutorial-step-number">!</span>
+            <div><strong>Contas pertencem à conexão</strong><p>Uma conta criada no servidor público não vira automaticamente uma conta de um servidor privado. Ao mudar de conexão, o outro host pode pedir login ou criação de uma nova conta.</p></div>
+          </div>
+          <div class="tutorial-current"><span>Conexão usada agora</span><strong id="tutorialCurrentConnection">—</strong></div>
+          <div class="settings-actions tutorial-actions">
+            <button id="tutorialOpenConnectionButton" class="primary-btn" type="button">Abrir meus servidores</button>
+            <button id="tutorialUsePublicButton" class="secondary-btn" type="button">Voltar ao servidor público</button>
+          </div>
+        </section>
+        <section class="settings-page active" data-page="profile">
+          <h2>Perfil</h2>
+          <div class="profile-editor"><button id="settingsAvatar" class="avatar profile-avatar"><span>?</span></button><div><button id="changeAvatarButton" class="secondary-btn">Alterar foto</button><button id="adjustAvatarButton" class="secondary-btn">Ajustar enquadramento</button><button id="removeAvatarButton" class="ghost-btn">Remover</button><small class="form-note">Prévia circular do avatar. Clique em Alterar foto para ajustar o enquadramento.</small></div></div>
+          <label>Nome exibido<input id="profileDisplayName" maxlength="64"></label>
+          <label>Status<select id="profileStatus"><option value="online">Online</option><option value="idle">Ausente</option><option value="dnd">Não perturbe</option><option value="invisible">Invisível</option></select></label>
+          <label>Status personalizado<input id="profileCustomStatus" maxlength="120" placeholder="O que você está fazendo?"></label>
+          <button id="saveProfileButton" class="primary-btn">Salvar perfil</button>
+        </section>
+        <section class="settings-page" data-page="audio">
+          <h2>Voz e áudio</h2>
+          <label>Microfone<select id="audioInputSelect"></select></label>
+          <label>Fone / saída<select id="audioOutputSelect"></select></label>
+          <div class="settings-actions"><button id="refreshDevicesButton" class="secondary-btn">Atualizar dispositivos</button><button id="testOutputButton" class="secondary-btn">Testar saída</button></div>
+          <label>Supressão de ruído<select id="noiseSuppressionMode"><option value="off">Desligada</option><option value="webrtc" selected>WebRTC / Chromium</option><option value="rnnoise">RNNoise · embutido no OpenCall (WASM)</option></select></label>
+          <small id="noiseSuppressionStatus" class="form-note">Supressão WebRTC ativa.</small>
+          <label class="range-label">Sensibilidade de voz <input id="voiceThreshold" type="range" min="2" max="40" value="10"><span id="voiceThresholdValue">10%</span></label>
+          <label class="check-label"><input id="pushToTalkToggle" type="checkbox"> Push-to-Talk</label>
+          <label>Tecla Push-to-Talk<input id="pushToTalkKey" value="Space" readonly></label>
+        </section>
+        <section class="settings-page" data-page="video">
+          <h2>Vídeo / WebRTC</h2>
+          <label>Câmera<select id="cameraSelect"></select></label>
+          <label>Codec de tela<select id="videoCodecSelect"><option value="auto">Automático</option><option value="H264">H.264</option><option value="VP8">VP8</option><option value="VP9">VP9</option><option value="AV1">AV1</option></select></label>
+          <label>Prioridade da transmissão<select id="screenQualityModeSelect"><option value="quality">Qualidade máxima · mantém 1080p/1440p/4K</option><option value="balanced">Equilibrado</option><option value="smooth">Fluidez · mantém FPS</option></select></label>
+          <small class="form-note">Qualidade máxima impede o WebRTC de reduzir automaticamente a resolução para preservar FPS. Para jogos em 1080p60 com H.264 hardware, 20–35 Mbps costuma preservar muito mais detalhe.</small>
+          <div class="stream-settings-grid">
+            <label>Resolução<select id="screenResolutionSelect"><option value="720p">720p · 1280×720</option><option value="1080p" selected>1080p · 1920×1080</option><option value="1440p">1440p / 2K · 2560×1440</option><option value="2160p">4K · 3840×2160</option></select></label>
+            <label>FPS<input id="screenFpsInput" type="number" min="1" max="120" step="1" value="60" list="screenFpsSuggestions"><datalist id="screenFpsSuggestions"><option value="30"><option value="35"><option value="45"><option value="60"><option value="75"><option value="90"><option value="120"></datalist></label>
+            <label>Bitrate (Mbps)<input id="screenBitrateInput" type="number" min="0.5" max="100" step="0.5" value="8" list="screenBitrateSuggestions"><datalist id="screenBitrateSuggestions"><option value="2.5"><option value="5"><option value="8"><option value="10"><option value="15"><option value="20"><option value="35"><option value="50"><option value="80"></datalist></label>
+          </div>
+          <small class="form-note">O FPS é livre: você pode usar 35, 45, 73, 120 etc. O limite real também depende do monitor, encoder, codec, GPU e rede.</small>
+          <div class="diagnostic-card"><strong>Renderizador do navegador</strong><span id="gpuRenderer">Detectando…</span><small>Na Web, a escolha direta de GPU para encoder/decoder ainda depende do Chromium. No Electron faremos o controle avançado.</small></div>
+        </section>
+        <section class="settings-page" data-page="desktop">
+          <h2>Desktop / GPU</h2>
+          <div id="desktopOnlyNotice" class="diagnostic-card"><strong>Electron</strong><span>Carregando integração desktop…</span><small>Esta página fica ativa no aplicativo Electron/AppImage.</small></div>
+          <label>GPU preferida para encoder<select id="encoderGpuSelect"><option value="auto">Automático pelo Chromium</option></select></label>
+          <label>GPU preferida para decoder<select id="decoderGpuSelect"><option value="auto">Automático pelo Chromium</option></select></label>
+          <label>Modo do encoder de vídeo<select id="encoderModeSelect"><option value="auto">Automático (hardware quando disponível)</option><option value="hardware">Hardware / VA-API</option><option value="software">Software / CPU</option></select></label>
+          <small class="form-note">Software desliga apenas o encoder acelerado. A interface continua usando GPU e o decoder pode continuar em hardware.</small>
+          <label>Transferência de frames<select id="zeroCopyModeSelect"><option value="auto">Automático (seguro em multi-GPU)</option><option value="safe">Cópia segura (zero-copy desligado)</option><option value="zero-copy">Zero-copy (experimental / modo antigo)</option></select></label>
+          <small class="form-note">Automático usa cópia segura em multi-GPU Wayland. Zero-copy reduz cópias e latência, mas pode causar flicker/quadros verdes dependendo das GPUs. Requer reinício.</small>
+          <label>Backend gráfico<select id="gpuBackendSelect"><option value="auto">Automático</option><option value="vulkan">Vulkan / ANGLE</option><option value="opengl">OpenGL / ANGLE</option></select></label>
+          <label class="check-label"><input id="hardwareAccelerationToggle" type="checkbox" checked> Aceleração por hardware</label>
+          <div class="gpu-warning"><strong>Encoder/decoder em GPUs diferentes</strong><span>O WebRTC do Chromium usa um GPU process compartilhado. Se escolher GPUs diferentes, esta versão aplica a GPU do encoder ao processo e mantém a preferência de decoder registrada. Split real será feito quando o backend de mídia nativo for adicionado.</span></div>
+          <div class="settings-actions"><button id="refreshGpuButton" class="secondary-btn">Atualizar GPUs</button><button id="applyGpuButton" class="primary-btn">Aplicar e reiniciar</button></div>
+          <div class="gpu-diagnostics-grid">
+            <div class="diagnostic-card"><strong>GPU aplicada</strong><span id="desktopGpuApplied">—</span><small id="desktopGpuEnv">—</small></div>
+            <div class="diagnostic-card"><strong>Video encode</strong><span id="desktopGpuEncodeStatus">—</span><small>Status real reportado pelo Chromium.</small></div>
+            <div class="diagnostic-card"><strong>Video decode</strong><span id="desktopGpuDecodeStatus">—</span><small>Status real reportado pelo Chromium.</small></div>
+          </div>
+          <pre id="desktopGpuDetails" class="gpu-details">Sem diagnóstico.</pre>
+        </section>
+        <section class="settings-page" data-page="notifications">
+          <h2>Notificações</h2>
+          <label class="check-label"><input id="desktopNotifications" type="checkbox"> Notificações do navegador</label>
+          <label class="check-label"><input id="notifyMentions" type="checkbox" checked> Menções e DMs</label>
+          <label class="check-label"><input id="notifyStreams" type="checkbox"> Quando alguém começa transmissão</label>
+          <button id="requestNotificationPermission" class="secondary-btn">Permitir notificações</button>
+        </section>
+        <section class="settings-page servers-settings-page" data-page="servers">
+          <h2>Servidores de conexão</h2>
+          <p class="settings-page-intro">Hosts físicos/servidores OpenCall. Eles são diferentes das comunidades da barra lateral.</p>
+          <div class="connection-manager-body settings-embedded-manager">
+            <div id="connectionManagerCurrent" class="connection-current-card">—</div>
+            <div class="connection-manager-toolbar"><input id="connectionSearchInput" placeholder="Buscar nos servidores salvos" autocomplete="off"><span>Troque de host sem editar IP toda vez.</span></div>
+            <div id="connectionProfileList" class="connection-profile-list"></div>
+            <form id="connectionAddForm" class="connection-add-form">
+              <div><strong>Adicionar servidor</strong><span>Salve um nome fácil e o endereço do WebSocket.</span></div>
+              <label>Nome<input id="connectionNameInput" maxlength="64" placeholder="Ex.: Servidor do João — São Paulo" required></label>
+              <label>Endereço<input id="connectionUrlInput" placeholder="wss://servidor.exemplo:8443/ws" required></label>
+              <div class="connection-add-actions"><button class="primary-btn" type="submit">Adicionar e conectar</button></div>
+              <small class="form-note">Também aceitamos <code>https://...</code> e convertemos automaticamente para <code>wss://.../ws</code>. Senhas nunca são guardadas aqui; apenas a sessão/token de cada servidor.</small>
+            </form>
+          </div>
+        </section>
+        <section class="settings-page" data-page="connection">
+          <h2>Conexão avançada</h2>
+          <div class="connection-settings-callout"><div><strong>Lista de servidores</strong><span>Para adicionar, remover ou alternar hosts, use a aba <b>Servidores</b>. Esta página fica para STUN/TURN e edição manual avançada.</span></div></div>
+          <label>Signaling WebSocket<input id="signalingUrl" value="wss://2d-instalacoes.tailc76287.ts.net:8443/ws"></label><small class="form-note">Este campo continua disponível para configuração avançada. Ao salvar um endereço novo, ele também entra na sua lista de servidores de conexão.</small>
+          <label>STUN<input id="stunUrl" placeholder="stun:stun.l.google.com:19302"></label>
+          <label>TURN<input id="turnUrl" placeholder="turn:servidor:3478"></label>
+          <label>Usuário TURN<input id="turnUsername"></label>
+          <label>Senha TURN<input id="turnPassword" type="password"></label>
+          <button id="saveConnectionButton" class="primary-btn">Salvar e reconectar</button>
+        </section>
+        <section class="settings-page" data-page="account">
+          <h2>Conta</h2>
+          <div class="account-card"><strong id="accountUsername">—</strong><span id="accountId">—</span></div>
+          <label>Senha atual<input id="oldPassword" type="password"></label>
+          <label>Nova senha<input id="newPassword" type="password" minlength="6"></label>
+          <button id="changePasswordButton" class="secondary-btn">Alterar senha</button>
+          <button id="logoutButton" class="danger-btn">Sair da conta</button>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="adminDialog" class="modal admin-modal">
+    <div class="modal-head"><div><strong>Administração</strong><span id="adminGuildName"></span></div><button class="modal-close" data-close="adminDialog">×</button></div>
+    <div class="admin-tabs"><button class="admin-tab active" data-admin="overview">Visão geral</button><button class="admin-tab" data-admin="channels">Canais</button><button class="admin-tab" data-admin="roles">Cargos</button><button class="admin-tab" data-admin="invites">Convites</button><button class="admin-tab" data-admin="members">Membros</button><button class="admin-tab" data-admin="logs">Logs</button></div>
+    <div class="admin-body">
+      <section class="admin-page active" data-admin-page="overview"><div id="adminStats" class="stats-grid"></div></section>
+      <section class="admin-page" data-admin-page="channels"><div class="admin-create-row"><input id="newCategoryName" placeholder="Nova categoria"><button id="createCategoryButton" class="secondary-btn">Criar categoria</button></div><div id="adminCategoryList" class="admin-category-list"></div><div class="admin-create-row"><input id="newChannelName" placeholder="Novo canal"><select id="newChannelType"><option value="text">Texto</option><option value="voice">Voz</option></select><select id="newChannelCategory"></select><button id="createChannelButton" class="secondary-btn">Criar canal</button></div><div id="adminChannelList"></div></section>
+      <section class="admin-page" data-admin-page="roles"><div class="admin-create-row"><input id="newRoleName" placeholder="Novo cargo"><button id="createRoleButton" class="secondary-btn">Criar cargo</button></div><div id="rolePermissionEditor" class="permission-grid"></div><div id="adminRoleList"></div></section>
+      <section class="admin-page" data-admin-page="invites"><div class="admin-create-row"><input id="inviteHours" type="number" value="24" min="0"><input id="inviteUses" type="number" value="0" min="0"><button id="createInviteButton" class="primary-btn">Gerar convite</button></div><div id="inviteResult" class="invite-result"></div></section>
+      <section class="admin-page" data-admin-page="members"><div id="adminMemberList"></div></section><section class="admin-page" data-admin-page="logs"><div id="adminLogList"></div></section>
+    </div>
+  </dialog>
+
+  <dialog id="communityChoiceDialog" class="modal small-modal" aria-labelledby="communityChoiceTitle">
+    <div class="modal-head"><strong id="communityChoiceTitle">Adicionar servidor</strong><button class="modal-close" data-close="communityChoiceDialog" aria-label="Fechar">×</button></div>
+    <div class="modal-body form-grid"><p>Crie sua comunidade ou entre em uma existente com convite.</p><button id="chooseCreateCommunity" type="button" class="primary-btn">Criar servidor</button><button id="chooseJoinCommunity" type="button" class="primary-btn">Entrar com convite</button></div>
+  </dialog>
+  <dialog id="createGuildDialog" class="modal small-modal"><div class="modal-head"><strong>Criar servidor</strong><button class="modal-close" data-close="createGuildDialog">×</button></div><form id="createGuildForm" class="modal-body"><label>Nome<input id="newGuildName" maxlength="64" required></label><button class="primary-btn">Criar</button></form></dialog>
+  <dialog id="joinGuildDialog" class="modal small-modal"><div class="modal-head"><strong>Entrar por convite</strong><button class="modal-close" data-close="joinGuildDialog">×</button></div><form id="joinGuildForm" class="modal-body"><label>Código<input id="inviteCodeInput" required></label><button class="primary-btn">Entrar</button></form></dialog>
+  <dialog id="friendsDialog" class="modal friends-modal"><div class="modal-head"><div><strong>Amigos</strong><span>Adicione pessoas pelo Nome#0000 e converse fora dos canais.</span></div><button class="modal-close" data-close="friendsDialog">×</button></div><div class="modal-body friends-body"><form id="friendSearchForm" class="friend-search"><input id="friendSearchInput" maxlength="80" placeholder="Ex.: Pedro#0007" autocomplete="off"><button class="primary-btn" type="submit">Buscar</button></form><div id="friendSearchResult" class="friend-section"><div class="friend-empty">Procure alguém pelo identificador público.</div></div><h3>Amigos</h3><div id="friendsList" class="friend-list"></div><h3>Pedidos recebidos</h3><div id="incomingFriendRequests" class="friend-list"></div><h3>Pedidos enviados</h3><div id="outgoingFriendRequests" class="friend-list"></div></div></dialog>
+
+  <dialog id="newDmDialog" class="modal small-modal"><div class="modal-head"><strong>Nova mensagem / grupo</strong><button class="modal-close" data-close="newDmDialog">×</button></div><div class="modal-body"><label>Nome do grupo (opcional)<input id="dmGroupName" maxlength="48" placeholder="Grupo privado"></label><div id="dmUserPicker" class="dm-user-picker"></div><button id="createGroupDmButton" class="primary-btn" type="button">Criar conversa</button></div></dialog>
+  <dialog id="searchDialog" class="modal search-modal"><div class="modal-head"><strong>Buscar mensagens</strong><button class="modal-close" data-close="searchDialog">×</button></div><form id="searchForm" class="search-form"><input id="searchInput" placeholder="Buscar neste canal"><button class="primary-btn">Buscar</button></form><div id="searchResults" class="search-results"></div></dialog>
+
+  <dialog id="pinsDialog" class="modal search-modal"><div class="modal-head"><div><strong>Mensagens fixadas</strong><span id="pinsTitle">Canal atual</span></div><button class="modal-close" data-close="pinsDialog">×</button></div><div id="pinsList" class="pins-list"></div></dialog>
+
+  <dialog id="editMessageDialog" class="modal small-modal"><div class="modal-head"><div><strong>Editar mensagem</strong><span>Atualize o texto e os arquivos anexados.</span></div><button class="modal-close" data-close="editMessageDialog">×</button></div><form id="editMessageForm" class="modal-body edit-message-form"><textarea id="editMessageInput" rows="5" maxlength="4000" placeholder="Mensagem"></textarea><div class="edit-message-attachment-head"><strong>Anexos</strong><button id="editMessageAttachButton" type="button" class="secondary-btn">＋ Adicionar arquivo</button></div><div id="editMessageAttachments" class="edit-message-attachments"></div><small id="editMessageAttachmentHint" class="edit-message-attachment-hint"></small><div class="edit-message-foot"><span>Esc cancela · Ctrl+Enter salva</span><span id="editMessageCounter">0/4000</span></div><div class="avatar-frame-actions"><button id="editMessageCancel" type="button" class="ghost-btn">Cancelar</button><button type="submit" class="primary-btn">Salvar edição</button></div></form></dialog>
+  <dialog id="userDialog" class="modal small-modal"><div class="modal-head"><strong id="userDialogName">Usuário</strong><button class="modal-close" data-close="userDialog">×</button></div><div class="modal-body"><div id="userDialogAvatar" class="avatar profile-avatar"><span>?</span></div><strong id="userDialogPublicId" class="user-public-id">—</strong><div id="userDialogStatus"></div><label>Volume<input id="userVolumeSlider" type="range" min="0" max="200" value="100"><span id="userVolumeValue">100%</span></label><div class="modal-action-grid"><button id="userMuteLocalButton" class="secondary-btn">Silenciar para mim</button><button id="userDmButton" class="secondary-btn">Mensagem</button><button id="userAddFriendButton" class="secondary-btn">Adicionar amigo</button><button id="userBlockButton" class="secondary-btn">Bloquear</button><button id="userTimeoutButton" class="secondary-btn admin-only hidden">Timeout 10 min</button><button id="userKickButton" class="danger-btn admin-only hidden">Expulsar</button><button id="userBanButton" class="danger-btn admin-only hidden">Banir</button></div></div></dialog>
+
+
+  <aside id="floatingStreamDock" class="floating-stream-dock hidden" aria-live="polite">
+    <div id="floatingStreamDrag" class="floating-stream-head">
+      <div class="floating-stream-title"><span class="live-dot"></span><strong>Sua transmissão</strong><span id="floatingStreamViewers">0 assistindo</span></div>
+      <div class="floating-stream-head-actions">
+        <button id="floatingStreamOpen" type="button" title="Abrir transmissão">↗</button>
+        <button id="floatingStreamHide" type="button" title="Ocultar mini transmissão">×</button>
+      </div>
+    </div>
+    <button id="floatingStreamVideoButton" class="floating-stream-video-button" type="button" title="Abrir sua transmissão">
+      <video id="floatingStreamVideo" autoplay playsinline muted></video>
+      <span class="floating-stream-hover">Abrir transmissão</span>
+    </button>
+    <div class="floating-stream-foot">
+      <span id="floatingStreamState">WebRTC · AO VIVO</span>
+      <button id="floatingStreamStop" type="button" class="danger">■ Parar</button>
+    </div>
+  </aside>
+  <button id="floatingStreamRestore" class="floating-stream-restore hidden" type="button" title="Mostrar mini transmissão"><span class="live-dot"></span>▣ AO VIVO</button>
+
+
+  <dialog id="avatarCropDialog" class="modal small-modal avatar-crop-modal">
+    <div class="modal-head"><div><strong>Ajustar foto de perfil</strong><span>Arraste livremente para reposicionar. O zoom começa mais afastado e pode ser reduzido até 0,65×.</span></div><button class="modal-close" data-close="avatarCropDialog">×</button></div>
+    <div class="modal-body">
+      <div id="avatarCropStage" class="avatar-crop-stage">
+        <canvas id="avatarCropCanvas" aria-label="Prévia do avatar"></canvas>
+        <div class="avatar-crop-mask"></div>
+      </div>
+      <div class="avatar-crop-controls">
+        <label>Zoom <input id="avatarCropZoom" type="range" min="0.65" max="4" step="0.01" value="0.90"></label>
+        <div class="avatar-crop-actions">
+          <button id="avatarCropReset" type="button" class="secondary-btn">Centralizar</button>
+          <button id="avatarCropCancel" type="button" class="ghost-btn">Cancelar</button>
+          <button id="avatarCropApply" type="button" class="primary-btn">Aplicar foto</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+  <dialog id="avatarFrameDialog" class="modal small-modal avatar-frame-modal">
+    <div class="modal-head"><div><strong>Ajustar enquadramento</strong><span>Arraste a foto e ajuste o zoom. Funciona também com GIF animado.</span></div><button class="modal-close" data-close="avatarFrameDialog">×</button></div>
+    <div class="modal-body">
+      <div id="avatarFrameStage" class="avatar-frame-stage">
+        <img id="avatarFrameImage" alt="Avatar">
+        <div class="avatar-frame-mask"></div>
+      </div>
+      <div class="avatar-frame-controls">
+        <label>Zoom <input id="avatarFrameZoom" type="range" min="0.5" max="4" step="0.01" value="1"></label>
+        <div class="avatar-frame-actions">
+          <button id="avatarFrameReset" type="button" class="secondary-btn">Centralizar</button>
+          <button id="avatarFrameCancel" type="button" class="ghost-btn">Cancelar</button>
+          <button id="avatarFrameApply" type="button" class="primary-btn">Salvar enquadramento</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+  <div id="screenContextMenu" class="stream-context-menu hidden" role="menu" aria-label="Opções da transmissão">
+    <div class="stream-context-head"><strong id="screenContextTitle">Transmissão</strong><span id="screenContextSubtitle">Opções locais</span></div>
+    <div id="hostQualityMenu" class="stream-context-section hidden">
+      <div class="stream-context-label">QUALIDADE DA TRANSMISSÃO</div>
+      <div class="stream-quality-custom">
+        <label>Resolução<select id="hostResolutionSelect"><option value="720p">720p</option><option value="1080p">1080p</option><option value="1440p">1440p / 2K</option><option value="2160p">4K</option></select></label>
+        <label>FPS<input id="hostFpsInput" type="number" min="1" max="120" step="1" value="60" list="hostFpsSuggestions"><datalist id="hostFpsSuggestions"><option value="30"><option value="35"><option value="45"><option value="60"><option value="75"><option value="90"><option value="120"></datalist></label>
+        <label>Bitrate<input id="hostBitrateInput" type="number" min="0.5" max="100" step="0.5" value="8"><span>Mbps</span></label>
+      </div>
+      <div class="stream-quick-row"><span>FPS rápido</span><button type="button" data-host-fps="30">30</button><button type="button" data-host-fps="60">60</button><button type="button" data-host-fps="120">120</button></div>
+      <div class="stream-quick-row"><span>Bitrate</span><button type="button" data-host-bitrate="5">5M</button><button type="button" data-host-bitrate="8">8M</button><button type="button" data-host-bitrate="15">15M</button><button type="button" data-host-bitrate="35">35M</button><button type="button" data-host-bitrate="50">50M</button></div>
+      <div id="hostQualitySummary" class="stream-quality-summary">1080p · 60 FPS · 8 Mbps</div>
+      <button id="hostQualityApply" type="button" class="stream-context-action primary-context-action">✓ Aplicar qualidade</button>
+      <div class="stream-context-note">Você pode usar FPS quebrado, como 35 ou 45. Alterar resolução/FPS durante a transmissão pode causar uma pequena pausa apenas no momento da troca. A fonte física pode limitar 4K/120.</div>
+    </div>
+    <div id="viewerVolumeMenu" class="stream-context-section hidden">
+      <div class="stream-context-label">VOLUME DA TRANSMISSÃO</div>
+      <div class="stream-volume-row"><span>Volume</span><strong id="streamVolumeValue">100%</strong></div>
+      <input id="streamVolumeSlider" class="stream-volume-slider" type="range" min="0" max="100" step="1" value="100">
+      <button id="streamMuteToggle" type="button" class="stream-context-action">🔊 Silenciar transmissão</button>
+      <button id="streamFullscreenToggle" type="button" class="stream-context-action">⛶ Abrir em tela cheia</button>
+      <div class="stream-context-note">Esse volume muda apenas para você. Duplo clique na transmissão também alterna tela cheia.</div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

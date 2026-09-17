@@ -1,0 +1,9 @@
+{
+  "name": "opencall-desktop",
+  "productName": "OpenCall Desktop",
+  "version": "0.7.61",
+  "private": true,
+  "main": "main.cjs",
+  "description": "OpenCall self-hosted desktop client with WebRTC voice, screen sharing, chat and files.",
+  "license": "MIT"
+}

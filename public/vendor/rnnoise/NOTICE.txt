@@ -1,0 +1,5 @@
+simple-rnnoise-wasm 1.1.0 (WASM binary only)
+https://github.com/JSmith01/simple-rnnoise-wasm
+License: MIT
+RNNoise itself: Xiph.Org / BSD-style license.
+OpenCall worklet integration: included in source tree.

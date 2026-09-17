@@ -1,0 +1,15 @@
+.build-cache/
+dist/
+dist-windows/
+*.AppImage
+*.AppImage.sha256
+*.exe
+*.zip
+*.sha256
+node_modules/
+__pycache__/
+*.py[cod]
+*.log
+*.db
+*.sqlite*
+.DS_Store
