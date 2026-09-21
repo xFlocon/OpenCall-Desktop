@@ -375,6 +375,11 @@ def init_db() -> None:
         con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_display_tag ON users(display_name COLLATE NOCASE,user_tag)")
         channel_cols = {r["name"] for r in con.execute("PRAGMA table_info(channels)").fetchall()}
         if "read_only" not in channel_cols: con.execute("ALTER TABLE channels ADD COLUMN read_only INTEGER DEFAULT 0")
+        con.execute('CREATE TABLE IF NOT EXISTS dm_read_state(thread_id TEXT NOT NULL,user_id INTEGER NOT NULL,last_row INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(thread_id,user_id))')
+        con.execute('CREATE INDEX IF NOT EXISTS dm_messages_thread_time ON dm_messages(thread_id,created_at)')
+        guild_cols={r[1] for r in con.execute('PRAGMA table_info(guilds)')}
+        if 'private' not in guild_cols:con.execute('ALTER TABLE guilds ADD COLUMN private INTEGER NOT NULL DEFAULT 1')
+        if 'description' not in guild_cols:con.execute("ALTER TABLE guilds ADD COLUMN description TEXT DEFAULT ''")
         count = con.execute("SELECT COUNT(*) FROM guilds").fetchone()[0]
         if count == 0:
             cur = con.execute("INSERT INTO guilds(name,created_at) VALUES(?,?)", ("OpenCall", time.time()))
@@ -526,7 +531,12 @@ sessions: dict[str, ScreenSession] = {}
 voice_rooms: dict[int, set[str]] = {}
 dm_call_rooms: dict[str, set[str]] = {}
 dm_screen_sessions: dict[str, DMScreenSession] = {}
-dm_screen_by_thread: dict[str, str] = {}
+dm_screen_by_thread: dict[str, set[str]] = {}
+
+async def broadcast_dm_streams(tid:str)->None:
+    streams=[{'code':s.code,'host_id':s.host_id} for s in dm_screen_sessions.values() if s.thread_id==tid]
+    for pid in list(dm_call_rooms.get(tid,set())):
+        await send_json(pid,{'type':'dm_screen_list','thread_id':tid,'streams':streams})
 chat_attempts: dict[str, list[float]] = {}
 join_attempts: dict[str, list[float]] = {}
 state_lock = asyncio.Lock()
@@ -674,12 +684,21 @@ async def broadcast_guild(guild_id: int, payload: dict[str,Any], exclude_client:
         if c.registered and c.user_id in members and c.id != exclude_client: await send_json(c.id,payload)
 
 
+def guild_presence_payload(client:Client,guild_id:int,channel_ids:set[int])->dict[str,Any]:
+    payload=client_public_payload(client)
+    if payload.get('voice',{}).get('channel_id') not in channel_ids:payload.pop('voice',None)
+    if payload.get('stream',{}).get('channel_id') not in channel_ids:payload.pop('stream',None)
+    watching=sessions.get(client.viewing_session_code)
+    if not watching or watching.guild_id!=guild_id:payload.pop('watching',None)
+    return payload
+
 async def broadcast_presence(guild_id: int) -> None:
     members = users_in_guild(guild_id)
+    with db() as con:channel_ids={int(r[0]) for r in con.execute('SELECT id FROM channels WHERE guild_id=?',(guild_id,))}
     by_user: dict[int,dict[str,Any]] = {}
     for c in clients.values():
         if not c.registered or c.user_id not in members: continue
-        payload = client_public_payload(c)
+        payload = guild_presence_payload(c,guild_id,channel_ids)
         uid = int(c.user_id)
         if uid not in by_user: by_user[uid] = payload
         else:
@@ -1084,7 +1103,8 @@ async def cleanup_client_guild_realtime(client:Client,guild_id:int)->None:
 async def end_dm_screen(code:str,reason="dm_screen_ended")->None:
     s=dm_screen_sessions.pop(code,None)
     if not s:return
-    if dm_screen_by_thread.get(s.thread_id)==code: dm_screen_by_thread.pop(s.thread_id,None)
+    codes=dm_screen_by_thread.get(s.thread_id,set());codes.discard(code)
+    if not codes:dm_screen_by_thread.pop(s.thread_id,None)
     host=clients.get(s.host_id)
     if host and host.dm_host_session_code==code: host.dm_host_session_code=None
     for vid in list(s.viewers):
@@ -1092,6 +1112,7 @@ async def end_dm_screen(code:str,reason="dm_screen_ended")->None:
         if v and v.dm_viewing_session_code==code:v.dm_viewing_session_code=None
         await send_json(vid,{"type":"dm_screen_ended","thread_id":s.thread_id,"code":code,"reason":reason})
     await send_json(s.host_id,{"type":"dm_screen_ended","thread_id":s.thread_id,"code":code,"reason":reason})
+    await broadcast_dm_streams(s.thread_id)
 
 
 async def leave_dm_screen_view(client:Client,notify=True)->None:
@@ -1113,8 +1134,7 @@ async def leave_dm_call(client:Client,notify=True)->None:
     for pid in list(room): await send_json(pid,{"type":"dm_call_participant_left","thread_id":tid,"client_id":client.id,"user_id":client.user_id})
     if not room:
         dm_call_rooms.pop(tid,None)
-        code=dm_screen_by_thread.get(tid)
-        if code: await end_dm_screen(code,"dm_call_ended")
+        for code in list(dm_screen_by_thread.get(tid,set())):await end_dm_screen(code,"dm_call_ended")
         if dm_member(tid,client.user_id):
             with db() as con: tids=[int(r[0]) for r in con.execute("SELECT user_id FROM dm_members WHERE thread_id=?",(tid,)).fetchall()]
             for uid in tids:
@@ -1137,12 +1157,7 @@ async def join_dm_call(client:Client,tid:str)->None:
     if not already:
         for pid in list(room):
             if pid!=client.id: await send_json(pid,{"type":"dm_call_participant_joined","thread_id":tid,"participant":dm_call_client_payload(client)})
-    code=dm_screen_by_thread.get(tid)
-    s=dm_screen_sessions.get(code) if code else None
-    if s and s.host_id!=client.id:
-        s.viewers.add(client.id); client.dm_viewing_session_code=s.code
-        await send_json(client.id,{"type":"dm_screen_join_approved","thread_id":tid,"code":s.code,"host_id":s.host_id})
-        await send_json(s.host_id,{"type":"dm_screen_viewer_joined","thread_id":tid,"viewer_id":client.id})
+    await broadcast_dm_streams(tid)
 
 
 async def remove_client(cid:str)->None:
@@ -1409,14 +1424,52 @@ async def handle_message(client:Client,m:dict[str,Any])->None:
         audit(gid,client.user_id,"role_assign",str(uid),str(rid))
         await broadcast_guild(gid,{"type":"structure_changed"});await broadcast_presence(gid); return
     if t=="invite_create":
-        if not has_perm(client,"create_invite",gid): await send_json(client.id,{"type":"error","error":"forbidden"}); return
+        with db() as con:community=con.execute('SELECT * FROM guilds WHERE id=?',(gid,)).fetchone()
+        if not community or (community['private'] and not has_perm(client,"create_invite",gid)): await send_json(client.id,{"type":"error","error":"forbidden"}); return
         code=secrets.token_urlsafe(7); hours=max(0,min(24*30,int(m.get("hours") or 24))); max_uses=max(0,min(10000,int(m.get("max_uses") or 0))); role_id=m.get("role_id")
         if role_id:
             with db() as con: role=con.execute("SELECT * FROM roles WHERE id=? AND guild_id=?",(int(role_id),gid)).fetchone()
             if not has_perm(client,"manage_roles",gid) or not can_grant_role(client.user_id,gid,role):
                 await send_json(client.id,{"type":"error","error":"role_hierarchy"});return
         with db() as con: con.execute("INSERT INTO invites(code,guild_id,creator_user_id,role_id,expires_at,max_uses,created_at) VALUES(?,?,?,?,?,?,?)",(code,gid,client.user_id,int(role_id) if role_id else None,time.time()+hours*3600 if hours else 0,max_uses,time.time()))
-        await send_json(client.id,{"type":"invite_created","code":code,"hours":hours,"max_uses":max_uses}); return
+        await send_json(client.id,{"type":"invite_created","guild_id":gid,"code":code,"hours":hours,"max_uses":max_uses}); return
+    if t=='guild_visibility':
+        if not has_perm(client,'manage_server',gid):await send_json(client.id,{'type':'error','error':'forbidden'});return
+        if not isinstance(m.get('private'),bool):await send_json(client.id,{'type':'error','error':'invalid_visibility'});return
+        with db() as con:con.execute('UPDATE guilds SET private=?,description=? WHERE id=?',(int(m['private']),safe_name(m.get('description') or '',300),gid))
+        await broadcast_guild(gid,{'type':'structure_changed'});return
+    if t in {'invite_preview','invite_send'}:
+        code=str(m.get('code') or '')
+        with db() as con:
+            inv=con.execute('SELECT * FROM invites WHERE code=?',(code,)).fetchone()
+            if not inv or (inv['expires_at'] and inv['expires_at']<time.time()) or (inv['max_uses'] and inv['uses']>=inv['max_uses']):await send_json(client.id,{'type':'error','error':'invalid_invite'});return
+            community=con.execute('SELECT * FROM guilds WHERE id=?',(inv['guild_id'],)).fetchone()
+            if not community or is_banned(client.user_id,inv['guild_id']):await send_json(client.id,{'type':'error','error':'invalid_invite'});return
+            members={int(r[0]) for r in con.execute('SELECT user_id FROM guild_members WHERE guild_id=?',(inv['guild_id'],))}
+        payload={'type':'invite_preview','code':code,'guild_id':community['id'],'name':community['name'],'icon_media_id':community['icon_media_id'],'description':community['description'],'private':bool(community['private']),'expires_at':inv['expires_at'],'member_count':None if community['private'] else len(members),'online_count':None if community['private'] else len({c.user_id for c in clients.values() if c.user_id in members})}
+        if t=='invite_send':
+            uid=int(m.get('user_id') or 0)
+            if client.user_id not in members or not are_friends(client.user_id,uid) or (community['private'] and not has_perm(client,'create_invite',community['id'])):await send_json(client.id,{'type':'error','error':'forbidden'});return
+            with db() as con:
+                if con.execute('SELECT 1 FROM blocks WHERE (blocker_user_id=? AND blocked_user_id=?) OR (blocker_user_id=? AND blocked_user_id=?)',(uid,client.user_id,client.user_id,uid)).fetchone():
+                    await send_json(client.id,{'type':'error','error':'forbidden'});return
+                thread=con.execute('''SELECT d.id FROM dm_threads d WHERE
+                    (SELECT COUNT(*) FROM dm_members x WHERE x.thread_id=d.id)=2 AND
+                    EXISTS(SELECT 1 FROM dm_members x WHERE x.thread_id=d.id AND x.user_id=?) AND
+                    EXISTS(SELECT 1 FROM dm_members x WHERE x.thread_id=d.id AND x.user_id=?) LIMIT 1''',(client.user_id,uid)).fetchone()
+                tid=thread[0] if thread else secrets.token_urlsafe(12)
+                if not thread:
+                    con.execute('INSERT INTO dm_threads(id,name,created_at) VALUES(?,?,?)',(tid,'',time.time()))
+                    for member in (client.user_id,uid):con.execute('INSERT INTO dm_members(thread_id,user_id) VALUES(?,?)',(tid,member))
+                mid=secrets.token_urlsafe(12)
+                con.execute('INSERT INTO dm_messages(id,thread_id,sender_user_id,content,created_at) VALUES(?,?,?,?,?)',(mid,tid,client.user_id,'Convite OpenCall: '+code+'\n'+community['name'],time.time()))
+                message=con.execute('SELECT * FROM dm_messages WHERE id=?',(mid,)).fetchone()
+            for member in (client.user_id,uid):
+                await send_to_user(member,{'type':'dm_list','threads':dm_threads_for(member)})
+                await send_to_user(member,serialize_dm(message))
+            await send_json(client.id,{'type':'invite_sent','user_id':uid,'thread_id':tid})
+        else:await send_json(client.id,payload)
+        return
     if t=="admin_stats":
         if not has_perm(client,"view_admin",gid): await send_json(client.id,{"type":"error","error":"forbidden"}); return
         with db() as con:
@@ -1600,6 +1653,14 @@ async def handle_message(client:Client,m:dict[str,Any])->None:
                 for uid in member_ids: con.execute("INSERT INTO dm_members(thread_id,user_id) VALUES(?,?)",(tid,uid))
         await send_json(client.id,{"type":"dm_opened","thread":dm_thread_payload(tid,client.user_id)}); return
     if t=="dm_list": await send_json(client.id,{"type":"dm_list","threads":dm_threads_for(client.user_id)}); return
+    if t=='dm_read':
+        tid=str(m.get('thread_id') or '')
+        if not dm_member(tid,client.user_id):return
+        with db() as con:
+            row=con.execute('SELECT rowid FROM dm_messages WHERE thread_id=? AND id=?',(tid,str(m.get('message_id') or ''))).fetchone()
+            if not row:return
+            con.execute('INSERT INTO dm_read_state(thread_id,user_id,last_row) VALUES(?,?,?) ON CONFLICT(thread_id,user_id) DO UPDATE SET last_row=MAX(last_row,excluded.last_row)',(tid,client.user_id,row[0]))
+        await send_to_user(client.user_id,{'type':'dm_list','threads':dm_threads_for(client.user_id)});return
     if t=="dm_history":
         tid=str(m.get("thread_id") or "")
         if not dm_member(tid,client.user_id):return
@@ -1674,25 +1735,18 @@ async def handle_message(client:Client,m:dict[str,Any])->None:
     if t=="dm_screen_start":
         tid=client.dm_call_thread_id
         if not tid or not dm_member(tid,client.user_id):return
-        old_code=dm_screen_by_thread.get(tid); old=dm_screen_sessions.get(old_code) if old_code else None
-        if old and old.host_id!=client.id:
-            await send_json(client.id,{"type":"error","error":"dm_screen_busy"}); return
+        old=dm_screen_sessions.get(client.dm_host_session_code)
         if old and old.host_id==client.id:
             await send_json(client.id,{"type":"dm_screen_created","thread_id":tid,"code":old.code}); return
         raw=''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(8)); code=f"DM-{raw[:4]}-{raw[4:]}"
-        s=DMScreenSession(code,tid,client.id,now()); dm_screen_sessions[code]=s; dm_screen_by_thread[tid]=code; client.dm_host_session_code=code
+        s=DMScreenSession(code,tid,client.id,now()); dm_screen_sessions[code]=s; dm_screen_by_thread.setdefault(tid,set()).add(code); client.dm_host_session_code=code
         await send_json(client.id,{"type":"dm_screen_created","thread_id":tid,"code":code})
-        for vid in list(dm_call_rooms.get(tid,set())):
-            if vid==client.id:continue
-            v=clients.get(vid)
-            if not v:continue
-            s.viewers.add(vid); v.dm_viewing_session_code=code
-            await send_json(vid,{"type":"dm_screen_join_approved","thread_id":tid,"code":code,"host_id":client.id})
-            await send_json(client.id,{"type":"dm_screen_viewer_joined","thread_id":tid,"viewer_id":vid})
+        await broadcast_dm_streams(tid)
         return
     if t=="dm_screen_join":
         tid=client.dm_call_thread_id; code=str(m.get("code") or ""); s=dm_screen_sessions.get(code)
         if not tid or not s or s.thread_id!=tid or client.id==s.host_id:return
+        if client.dm_viewing_session_code!=code:await leave_dm_screen_view(client,False)
         s.viewers.add(client.id); client.dm_viewing_session_code=code
         await send_json(client.id,{"type":"dm_screen_join_approved","thread_id":tid,"code":code,"host_id":s.host_id})
         await send_json(s.host_id,{"type":"dm_screen_viewer_joined","thread_id":tid,"viewer_id":client.id}); return
@@ -1786,16 +1840,23 @@ def dm_member(tid:str,uid:int)->bool:
 def dm_thread_payload(tid:str,viewer_uid:int)->dict[str,Any]:
     with db() as con:
         th=con.execute("SELECT * FROM dm_threads WHERE id=?",(tid,)).fetchone(); rows=con.execute("SELECT u.* FROM dm_members d JOIN users u ON u.id=d.user_id WHERE d.thread_id=?",(tid,)).fetchall()
-    return {"id":tid,"name":th["name"] if th else "","members":[public_user_row(r) for r in rows],"display_name":(th["name"] if th and th["name"] else ", ".join(r["display_name"] for r in rows if r["id"]!=viewer_uid))}
+        last=con.execute('SELECT MAX(created_at) FROM dm_messages WHERE thread_id=?',(tid,)).fetchone()[0]
+        unread=con.execute('SELECT COUNT(*) FROM dm_messages WHERE thread_id=? AND sender_user_id!=? AND deleted=0 AND rowid>COALESCE((SELECT last_row FROM dm_read_state WHERE thread_id=? AND user_id=?),0)',(tid,viewer_uid,tid,viewer_uid)).fetchone()[0]
+    return {"id":tid,"last_activity":last or (th['created_at'] if th else 0),"unread_count":unread,"name":th["name"] if th else "","members":[public_user_row(r) for r in rows],"display_name":(th["name"] if th and th["name"] else ", ".join(r["display_name"] for r in rows if r["id"]!=viewer_uid))}
 
 
 def dm_threads_for(uid:int)->list[dict[str,Any]]:
     with db() as con: tids=[r[0] for r in con.execute("SELECT thread_id FROM dm_members WHERE user_id=?",(uid,)).fetchall()]
-    return [dm_thread_payload(t,uid) for t in tids]
+    return sorted([dm_thread_payload(t,uid) for t in tids],key=lambda t:t['last_activity'],reverse=True)
 
 
 @app.get("/")
-async def root():
+async def root(invite:str=''):
+    if invite:
+        from fastapi.responses import HTMLResponse
+        from html import escape
+        code=escape(invite[:128])
+        return HTMLResponse(f'<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Convite OpenCall</title><body style="background:#141820;color:#fff;font:18px sans-serif;padding:40px"><h1>Convite para comunidade OpenCall</h1><p>Abra o OpenCall, conecte ao servidor deste endereço e use + → Entrar com convite.</p><p>Cole este código: <strong>{code}</strong></p><p>Confira o cartão da comunidade antes de entrar.</p></body></html>')
     with db() as con: users=con.execute("SELECT COUNT(*) FROM users").fetchone()[0]; guilds=con.execute("SELECT COUNT(*) FROM guilds").fetchone()[0]
     return {"name":"OpenCall Local RTC Server","version":SERVER_VERSION,"status":"ok","users":users,"guilds":guilds,"features":{"persistent":True,"sqlite":True,"voice":True,"screen":True,"files_10gb":True}}
 

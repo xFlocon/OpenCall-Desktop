@@ -8,6 +8,8 @@ command -v python3 >/dev/null || { echo "python3 ausente" >&2; exit 1; }
 python3 -m py_compile "$ROOT/scripts/serve.py"
 python3 "$ROOT/scripts/check-membership.py"
 python3 "$ROOT/scripts/check-hierarchy.py"
+python3 "$ROOT/scripts/check-dm-streams.py"
+python3 "$ROOT/scripts/check-presence.py"
 bash -n "$ROOT/run-opencall.sh" "$ROOT/run-dev-electron.sh" "$ROOT/build-appimage.sh" "$ROOT/scripts/fetch-rnnoise-wasm.sh" "$BUILDER"
 if command -v node >/dev/null 2>&1; then
   node --check "$ROOT/public/app.js"

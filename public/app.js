@@ -361,7 +361,7 @@ async function handleMessage(m){
     case "auth_required": state.authenticated=false;requireAuthDialog();break;
     case "auth_ok": state.authenticated=true;state.rtcConfig=m.rtc_config||state.rtcConfig;state.profile=m.profile||state.profile;preloadAvatarMedia([state.profile]);if(m.auth_token)saveAuthTokenForUrl(settings.signalingUrl,m.auth_token);saveAccountForUrl(settings.signalingUrl,state.profile);if(els.authDialog.open)els.authDialog.close();updateSelfUI();send({type:"dm_list"});send({type:"friends_list"});if(state.pendingInvite){send({type:"invite_accept",code:state.pendingInvite});state.pendingInvite="";history.replaceState({},"",location.pathname);}maybeOpenTutorialAfterRegistration();break;
     case "auth_error": showAuthError(m.error);break;
-    case "bootstrap": {const first=state.homeInitializedFor!==state.clientId;applyBootstrap(m);if(first){state.homeInitializedFor=state.clientId;openFriendsHome("all")}break;}
+    case "bootstrap": {const first=state.homeInitializedFor!==state.clientId;applyBootstrap(m);if(first){state.homeInitializedFor=state.clientId;openFriendsHome("all")}if(state.returnToVoiceGuild&&Number(state.returnToVoiceGuild)===Number(state.guildId)){state.returnToVoiceGuild=null;if(state.voiceChannelId)openVoiceChannel(state.voiceChannelId,{autoJoin:false})}break;}
     case "structure_changed": send({type:"bootstrap",guild_id:state.guildId});break;
     case "category_deleted":
       toast(`Categoria “${m.name||"categoria"}” excluída${Number(m.channels_moved||0)?` · ${m.channels_moved} canal(is) movido(s) para OUTROS`:""}.`,"success",5000);
@@ -371,7 +371,7 @@ async function handleMessage(m){
       finishGuildAction(m);toast(`Você saiu de “${m.name||"servidor"}”.`,"success",5000);break;
     case "guild_deleted":
       finishGuildAction(m);toast(`Servidor “${m.name||"servidor"}” excluído.`,"success",5000);break;
-    case "presence_update": if(Number(m.guild_id)===Number(state.guildId)){const old=state.presence;state.presence=m.users||[];preloadAvatarMedia(state.presence);notifyNewStreams(old,state.presence);renderMembers();renderChannels();renderCall();}break;
+    case "presence_update": rememberGuildPresence(m);if(Number(m.guild_id)===Number(state.guildId)){const old=state.presence;state.presence=m.users||[];preloadAvatarMedia(state.presence);notifyNewStreams(old,state.presence);renderMembers();renderChannels();renderCall();}break;
     case "chat_history": preloadAvatarMedia((m.messages||[]).map(x=>x.sender));state.messages.set(Number(m.channel_id),m.messages||[]);if(Number(m.channel_id)===Number(state.channelId))renderChat(true);break;
     case "chat_message": preloadAvatarMedia([m.sender]);receiveChatMessage(m);break;
     case "chat_updated": updateChatMessage(m.message);break;
@@ -380,7 +380,7 @@ async function handleMessage(m){
     case "pins_result": renderPinnedResults(m.messages||[],m.channel_id);break;
     case "dm_list": state.dmThreads=m.threads||[];preloadAvatarMedia(state.dmThreads.flatMap(t=>t.members||[]));renderDmList();break;
     case "dm_opened": upsertDmThread(m.thread);openDm(m.thread.id);break;
-    case "dm_history": preloadAvatarMedia((m.messages||[]).map(x=>x.sender));state.dmMessages.set(m.thread_id,m.messages||[]);if(state.dmThreadId===m.thread_id)renderDm(true);break;
+    case "dm_history": preloadAvatarMedia((m.messages||[]).map(x=>x.sender));state.dmMessages.set(m.thread_id,m.messages||[]);if(state.dmThreadId===m.thread_id){renderDm(true);markCurrentDmRead()}break;
     case "dm_message": preloadAvatarMedia([m.sender]);receiveDmMessage(m);break;
     case "friends_state": state.friends=m.friends||[];state.friendIncoming=m.incoming||[];state.friendOutgoing=m.outgoing||[];preloadAvatarMedia([...state.friends,...state.friendIncoming,...state.friendOutgoing]);renderFriends();renderFriendsHome();if(state.friendSearchResult){renderFriendSearchResult(state.friendSearchResult);renderFriendsHomeSearchResult(state.friendSearchResult)}renderDmList();break;
     case "friend_search_result": state.friendSearchResult=m.user||null;preloadAvatarMedia(m.user?[m.user]:[]);renderFriendSearchResult(m.user||null);renderFriendsHomeSearchResult(m.user||null);break;
@@ -396,7 +396,7 @@ async function handleMessage(m){
     case "dm_call_declined": toast(`${publicUserId(m.user||{})||"Usuário"} recusou a chamada.`,"info",4500);break;
     case "dm_call_ended": if(state.incomingDmCall?.thread?.id===m.thread_id){state.incomingDmCall=null;if(els.dmIncomingCallDialog.open)els.dmIncomingCallDialog.close();toast("A chamada foi encerrada.","info")}break;
     case "dm_call_left": if(m.thread_id===state.dmCallThreadId){cleanupVoice(false);if(state.dmThreadId===m.thread_id)openDm(m.thread_id)}break;
-    case "voice_joined": await onVoiceJoined(m);break;
+    case "voice_joined": state.activeVoiceGuild=state.guildId;await onVoiceJoined(m);break;
     case "voice_move_requested": if(Number(m.guild_id)===Number(state.guildId))openVoiceChannel(Number(m.channel_id));break;
     case "voice_participant_joined": await onVoiceParticipantJoined(m);break;
     case "voice_participant_left": onVoiceParticipantLeft(m);break;
@@ -406,6 +406,7 @@ async function handleMessage(m){
     case "voice_left":
       // Ignora ACK atrasado de uma call anterior (importante ao trocar canal -> DM).
       if(state.voiceChannelId&&(!m.channel_id||Number(m.channel_id)===Number(state.voiceChannelId))){if(state.screenStream||state.screenSessionCode)stopScreenShare(true);if(state.viewingHostId||state.viewerPeer)closeScreenViewer(true);cleanupVoice(false);renderCall();renderChannels();}break;
+    case "dm_screen_list": if(m.thread_id===state.dmCallThreadId){state.dmScreens=m.streams||[];renderCall()}break;
     case "dm_screen_created": state.screenScope="dm";state.screenSessionCode=m.code;renderCall();updateFloatingStreamDock();toast("Sua tela está ao vivo na DM.","success");break;
     case "dm_screen_viewer_joined": if(state.screenStream&&m.thread_id===state.dmCallThreadId)await createScreenOffer(m.viewer_id);updateFloatingStreamDock();break;
     case "dm_screen_viewer_left": closeScreenHostPeer(m.viewer_id);updateFloatingStreamDock();break;
@@ -420,7 +421,9 @@ async function handleMessage(m){
     case "signal": await handleScreenSignal(m.from_id,m.payload||{});break;
     case "left_session": closeScreenViewer();break;
     case "session_ended": if(m.code===state.screenSessionCode){stopScreenShare(false)}if(m.code===state.viewingSessionCode)closeScreenViewer();break;
-    case "invite_created": els.inviteResult.textContent=`Código: ${m.code} · Link: ${location.origin}${location.pathname}?invite=${encodeURIComponent(m.code)} · válido ${m.hours?m.hours+"h":"sem expiração"}`;toast("Convite criado.","success");break;
+    case "invite_created": els.inviteResult.textContent=`Código: ${m.code} · válido ${m.hours?m.hours+"h":"sem expiração"}`;if(document.getElementById('inviteFriendsDialog')?.open&&Number(m.guild_id)===Number(state.guildId))fillInviteFriends(m);toast("Convite criado.","success");break;
+    case "invite_preview": case "invite_received": showCommunityInvite(m);break;
+    case "invite_sent": toast('Convite salvo na DM. Disponível também quando seu amigo entrar.','success');if(m.thread_id){document.getElementById('inviteFriendsDialog')?.close();openDm(m.thread_id)}break;
     case "admin_stats": renderAdminStats(m.stats||{});renderAdminRoles(m.roles||[]);break;
     case "admin_log": renderAdminLog(m.entries||[]);break;
     case "profile_updated": toast("Perfil atualizado.","success");send({type:"bootstrap",guild_id:state.guildId});break;
@@ -521,6 +524,43 @@ function decorateCommunityRail(){
     const image=document.createElement('img');image.src=mediaUrl(guild.icon_media_id);image.alt=guild.name;image.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:inherit';button.replaceChildren(image);
   }
 }
+const guildVoicePresence=new Map();let guildHover=null,guildHoverTimer;
+function rememberGuildPresence(message){
+  guildVoicePresence.set(`${settings.signalingUrl}:${message.guild_id}`,message.users||[]);
+  if(guildHover?.id===Number(message.guild_id))renderGuildHover();
+}
+function closeGuildHover(){clearTimeout(guildHoverTimer);guildHover=null;document.getElementById('guildVoiceTooltip')?.remove()}
+function renderGuildHover(){
+  if(!guildHover)return;let tip=document.getElementById('guildVoiceTooltip');
+  if(!tip){tip=document.createElement('div');tip.id='guildVoiceTooltip';tip.setAttribute('role','tooltip');document.body.appendChild(tip)}
+  tip.replaceChildren();const name=document.createElement('strong');name.textContent=guildHover.name;tip.appendChild(name);
+  const users=guildVoicePresence.get(`${settings.signalingUrl}:${guildHover.id}`);
+  const unique=Array.from(new Map((users||[]).filter(u=>u.voice?.channel_id).map(u=>[u.user_id,u])).values());
+  const row=document.createElement('div');row.className='guild-voice-preview';
+  for(const user of unique.slice(0,5)){const avatar=document.createElement('span');avatar.className='avatar';avatar.title=user.display_name;setAvatar(avatar,user.avatar_media_id,user.display_name,user);row.appendChild(avatar)}
+  if(unique.length>5){const more=document.createElement('span');more.className='guild-voice-more';more.textContent=`+${unique.length-5}`;row.appendChild(more)}
+  if(!unique.length)row.textContent=users?'Ninguém em call':'Carregando chamadas…';tip.appendChild(row);
+  const rect=guildHover.rect;tip.style.left=`${rect.right+12}px`;tip.style.top=`${Math.max(8,Math.min(rect.top,innerHeight-tip.offsetHeight-8))}px`;
+}
+function showGuildHover(button){
+  const index=Array.from(els.guildRail.children).indexOf(button),guild=state.guilds[index];if(!guild)return;
+  closeGuildHover();guildHover={id:Number(guild.id),name:guild.name,rect:button.getBoundingClientRect()};
+  renderGuildHover();guildHoverTimer=setTimeout(()=>send({type:'get_presence',guild_id:guild.id},{silent:true}),200);
+}
+els.guildRail.addEventListener('mouseover',e=>{const button=e.target.closest('.server-bubble');if(button&&!button.contains(e.relatedTarget))showGuildHover(button)});
+els.guildRail.addEventListener('mouseleave',closeGuildHover);
+els.guildRail.addEventListener('focusin',e=>{const button=e.target.closest('.server-bubble');if(button)showGuildHover(button)});
+els.guildRail.addEventListener('focusout',closeGuildHover);
+els.guildRail.addEventListener('click',closeGuildHover);
+function returnToActiveCall(){
+  if(state.dmCallThreadId){openDmCallView();return}
+  if(!state.voiceChannelId)return;
+  if(Number(state.activeVoiceGuild)===Number(state.guildId)){openVoiceChannel(state.voiceChannelId,{autoJoin:false});return}
+  state.returnToVoiceGuild=state.activeVoiceGuild;send({type:'guild_select',guild_id:state.activeVoiceGuild});
+}
+els.voiceMiniChannel.tabIndex=0;els.voiceMiniChannel.setAttribute('role','button');els.voiceMiniChannel.setAttribute('aria-label','Voltar para chamada atual');
+els.voiceMiniPanel.addEventListener('click',e=>{if(!e.target.closest('button'))returnToActiveCall()});
+els.voiceMiniChannel.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();returnToActiveCall()}});
 new MutationObserver(()=>{if(Array.from(els.guildRail.children).some((b,i)=>state.guilds[i]?.icon_media_id&&!b.querySelector('img')))decorateCommunityRail()}).observe(els.guildRail,{childList:true});
 function selectGuild(id){
   closeGuildContextMenu();
@@ -1056,10 +1096,40 @@ async function requestDesktopDisplayMedia(constraints){
 // DMs e grupos privados
 // -----------------------------------------------------------------------------
 function upsertDmThread(th){const i=state.dmThreads.findIndex(x=>x.id===th.id);if(i>=0)state.dmThreads[i]=th;else state.dmThreads.push(th);renderDmList()}
-function renderDmList(){els.dmList.replaceChildren();for(const th of state.dmThreads){const b=document.createElement("button");b.className=`dm-row ${state.currentView==="dm"&&state.dmThreadId===th.id?"active":""}`;const other=th.members?.find(x=>Number(x.user_id)!==Number(state.profile?.user_id))||th.members?.[0];const av=document.createElement("span");av.className="avatar";av.style.width="26px";av.style.height="26px";av.style.borderRadius="9px";setAvatar(av,other?.avatar_media_id,th.display_name||other?.display_name,other||{});const n=document.createElement("span");n.textContent=th.display_name||"Conversa";b.append(av,n);b.onclick=()=>openDm(th.id);els.dmList.appendChild(b)}}
+function renderDmList(){
+  state.dmThreads.sort((a,b)=>(Number(b.last_activity)||0)-(Number(a.last_activity)||0));
+  els.dmList.replaceChildren();let total=0;
+  for(const th of state.dmThreads){const count=Number(th.unread_count)||0;total+=count;const b=document.createElement('button');b.className=`dm-row ${state.currentView==='dm'&&state.dmThreadId===th.id?'active':''} ${count?'dm-unread':''}`;
+    const other=th.members?.find(x=>Number(x.user_id)!==Number(state.profile?.user_id))||th.members?.[0];const av=document.createElement('span');av.className='avatar';av.style.cssText='width:26px;height:26px;min-width:26px;border-radius:9px';setAvatar(av,other?.avatar_media_id,th.display_name||other?.display_name,other||{});
+    const name=document.createElement('span');name.textContent=th.display_name||'Conversa';b.append(av,name);
+    if(count){const badge=document.createElement('span');badge.className='dm-unread-badge';badge.textContent=count>99?'99+':String(count);badge.setAttribute('aria-label',`${count} mensagens não lidas`);b.appendChild(badge)}
+    b.onclick=()=>openDm(th.id);els.dmList.appendChild(b);
+  }
+  let badge=els.homeButton.querySelector('.dm-unread-badge');if(total&&!badge){badge=document.createElement('span');badge.className='dm-unread-badge';els.homeButton.appendChild(badge)}
+  if(badge){badge.hidden=!total;badge.textContent=total>99?'99+':String(total)}els.homeButton.setAttribute('aria-label',total?`Mensagens diretas: ${total} não lidas`:'Mensagens diretas');
+}
 function openDm(tid){const th=state.dmThreads.find(x=>x.id===tid);if(!th){send({type:"dm_list"});return}state.dmThreadId=tid;switchView("dm");const sameCall=Boolean(state.dmCallThreadId&&state.dmCallThreadId===tid);if(sameCall)mountCallUiInDm();else restoreCallUiHome();els.viewIcon.textContent="@";els.viewTitle.textContent=th.display_name||"Mensagem direta";els.viewSubtitle.textContent=sameCall?"Conversa privada · chamada ativa":"Conversa privada · mensagens, arquivos, chamadas e tela";send({type:"dm_history",thread_id:tid});renderDm(true);if(sameCall)renderCall();updateDmCallToolbar()}
-function receiveDmMessage(m){if(!state.dmThreads.some(t=>t.id===m.thread_id))send({type:"dm_list"},{silent:true});const l=state.dmMessages.get(m.thread_id)||[];if(!l.some(x=>x.id===m.id))l.push(m);state.dmMessages.set(m.thread_id,l);if(state.currentView==="dm"&&state.dmThreadId===m.thread_id)renderDm(true);else if(Number(m.sender?.user_id)!==Number(state.profile?.user_id))notify("Nova mensagem direta",`${m.sender?.display_name||m.sender?.username}: ${(m.content||"anexo").slice(0,100)}`)}
-function renderDm(scroll=false){const list=state.dmMessages.get(state.dmThreadId)||[];els.dmMessageList.replaceChildren();for(const m of list){const clone={...m,channel_id:null,reactions:[],pinned:false};els.dmMessageList.appendChild(dmMessageNode(clone))}if(scroll)requestAnimationFrame(()=>els.dmScroller.scrollTop=els.dmScroller.scrollHeight)}
+function receiveDmMessage(m){
+  const thread=state.dmThreads.find(t=>t.id===m.thread_id),list=state.dmMessages.get(m.thread_id)||[];
+  if(list.some(x=>x.id===m.id))return;
+  list.push(m);state.dmMessages.set(m.thread_id,list);
+  const reading=state.currentView==='dm'&&state.dmThreadId===m.thread_id&&!document.hidden&&document.hasFocus();
+  const incoming=Number(m.sender?.user_id)!==Number(state.profile?.user_id);
+  if(thread){thread.last_activity=Math.max(Number(thread.last_activity)||0,Number(m.created_at)||0);if(incoming&&!reading)thread.unread_count=(Number(thread.unread_count)||0)+1}
+  else send({type:'dm_list'},{silent:true});
+  if(state.currentView==='dm'&&state.dmThreadId===m.thread_id)renderDm(true);
+  if(reading)markCurrentDmRead();else if(incoming)notify('Nova mensagem direta',`${m.sender?.display_name||m.sender?.username}: ${(m.content||'anexo').slice(0,100)}`);
+  renderDmList();
+}
+function markCurrentDmRead(){
+  if(state.currentView!=='dm'||document.hidden||!document.hasFocus())return;
+  const thread=state.dmThreads.find(t=>t.id===state.dmThreadId),last=state.dmMessages.get(state.dmThreadId)?.at(-1);
+  if(!last)return;
+  if(send({type:'dm_read',thread_id:state.dmThreadId,message_id:last.id},{silent:true})){if(thread)thread.unread_count=0;renderDmList()}
+}
+window.addEventListener('focus',markCurrentDmRead);
+document.addEventListener('visibilitychange',markCurrentDmRead);
+function renderDm(scroll=false){const list=state.dmMessages.get(state.dmThreadId)||[];els.dmMessageList.replaceChildren();for(const m of list){const clone={...m,channel_id:null,reactions:[],pinned:false};const node=dmMessageNode(clone);const invite=!m.deleted&&/^Convite OpenCall: ([A-Za-z0-9_-]+)\n(.+)$/s.exec(m.content||'');if(invite){const card=document.createElement('div');card.className='dm-invite-card';const title=document.createElement('strong');title.textContent=invite[2];const text=document.createElement('p');text.textContent='Convite para comunidade';const button=document.createElement('button');button.className='primary-btn';button.textContent='Ver convite';button.onclick=()=>send({type:'invite_preview',code:invite[1]});card.append(title,text,button);node.querySelector('.message-main').appendChild(card)}els.dmMessageList.appendChild(node)}if(scroll)requestAnimationFrame(()=>els.dmScroller.scrollTop=els.dmScroller.scrollHeight)}
 function dmMessageNode(m){const row=document.createElement("article");row.className="message dm-message";row.dataset.id=m.id;const av=document.createElement("span");av.className="avatar message-avatar";setAvatar(av,m.sender?.avatar_media_id,m.sender?.display_name,m.sender||{});const main=document.createElement("div");main.className="message-main";if(m.reply){const rp=document.createElement("div");rp.className="reply-preview";rp.textContent=`↪ ${m.reply.display_name||"Usuário"}: ${(m.reply.content||"mensagem").slice(0,100)}`;main.appendChild(rp)}const meta=document.createElement("div");meta.className="message-meta";meta.innerHTML=`<span class="message-author">${escapeHtml(m.sender?.display_name||m.sender?.username)}</span><span class="message-time">${formatTime(m.created_at)}</span>${m.edited_at?'<span class="message-edited">(editada)</span>':""}`;const content=document.createElement("div");content.className="message-content";content.innerHTML=m.deleted?"<em>Mensagem removida</em>":linkifyMentions(m.content||"");main.append(meta,content);if(!m.deleted&&m.attachments?.length)main.appendChild(renderAttachments(m.attachments));row.append(av,main);return row}
 function submitDm(){const content=els.dmInput.value.trim();if((!content&&!state.pendingFiles.length)||!state.dmThreadId)return;const ready=state.pendingFiles.filter(x=>x.status==="done"&&x.record).map(x=>x.record);if(state.pendingFiles.some(x=>x.status!=="done")){toast("Conclua ou remova os anexos pendentes.","error");return}if(!send({type:"dm_send",thread_id:state.dmThreadId,content,attachments:ready,reply_to:state.dmReplyTo?.id||""}))return;els.dmInput.value="";state.pendingFiles=[];renderUploadTray();autoResize(els.dmInput)}
 function openNewDm(){els.dmUserPicker.replaceChildren();els.dmGroupName.value="";const users=state.friends.filter(x=>Number(x.user_id)!==Number(state.profile?.user_id));if(!users.length){const empty=document.createElement("div");empty.className="friend-empty";empty.textContent="Adicione amigos pelo Nome#0000 para iniciar conversas privadas.";els.dmUserPicker.appendChild(empty)}for(const u of users){const l=document.createElement("label");l.className="user-picker-row";const cb=document.createElement("input");cb.type="checkbox";cb.value=u.user_id;const span=document.createElement("span");span.textContent=`${publicUserId(u)} (@${u.username||""})`;l.append(cb,span);els.dmUserPicker.appendChild(l)}els.newDmDialog.showModal()}
@@ -1210,6 +1280,7 @@ function leaveVoice(){
   cleanupVoice(false);renderCall();renderChannels();updateDmCallToolbar();
 }
 function cleanupVoice(notify=true){
+  state.dmScreens=[];
   state.dmAvailableScreen=null;
   if(notify){if(state.dmCallThreadId)send({type:"dm_call_leave"},{silent:true});else if(state.voiceChannelId)send({type:"voice_leave"},{silent:true})}
   if(state.viewingHostId||state.viewerPeer)closeScreenViewer(notify);
@@ -1376,8 +1447,9 @@ function renderCall(){
     if(hasCamera){if(!video){video=document.createElement("video");video.className="camera-video";video.autoplay=true;video.playsInline=true;video.muted=true;card.appendChild(video)}if(video.srcObject!==camStream)video.srcObject=camStream}
     else if(video){video.srcObject=null;video.remove()}
     const center=document.createElement("div");center.className="voice-card-center";const av=document.createElement("span");av.className="avatar voice-card-avatar";setAvatar(av,u.avatar_media_id,u.display_name,u);const name=document.createElement("strong");name.textContent=`${u.display_name||u.username||"Usuário"}${isSelf?" · você":""}`;const status=document.createElement("span");status.className="voice-card-status";status.textContent=voice.muted?"🔇 microfone desligado":voice.speaking?"falando":"na chamada";center.append(av,name,status);card.appendChild(center);
-    const hasRemoteDmScreen=dmMode&&!isSelf&&state.dmAvailableScreen?.threadId===state.dmCallThreadId&&state.dmAvailableScreen?.hostId===u.client_id;const hasStream=isSelf?Boolean(state.screenStream):(dmMode?hasRemoteDmScreen:Boolean(u.stream));
-    if(hasStream){const live=document.createElement("button");live.className="live-pill";live.textContent="● AO VIVO · Assistir";live.onclick=()=>isSelf?showOwnScreen():(dmMode?watchDmScreen():watchScreen(u.client_id));card.appendChild(live)}
+    const dmStream=(state.dmScreens||[]).find(s=>s.host_id===u.client_id);
+    const hasRemoteDmScreen=dmMode&&!isSelf&&(dmStream||state.dmAvailableScreen?.threadId===state.dmCallThreadId&&state.dmAvailableScreen?.hostId===u.client_id);const hasStream=isSelf?Boolean(state.screenStream):(dmMode?hasRemoteDmScreen:Boolean(u.stream));
+    if(hasStream){const live=document.createElement("button");live.className="live-pill";live.textContent="● AO VIVO · Assistir";live.onclick=()=>{if(dmStream)state.dmAvailableScreen={threadId:state.dmCallThreadId,hostId:dmStream.host_id,code:dmStream.code};isSelf?showOwnScreen():(dmMode?watchDmScreen():watchScreen(u.client_id))};card.appendChild(live)}
     const foot=document.createElement("div");foot.className="voice-card-footer";foot.innerHTML=`<strong>${escapeHtml(u.display_name||u.username||"Usuário")}</strong><span>${voice.camera?"📷 ":""}${voice.muted?"🔇":"🎙"}${voice.deafened?" 🎧":""}</span>`;if(!isSelf){const more=document.createElement("button");more.textContent="⋯";more.onclick=()=>openUserDialog(u);foot.appendChild(more)}card.appendChild(foot);if(card.parentNode!==els.voiceGrid)els.voiceGrid.appendChild(card)
   }
   for(const card of existingCards.values())if(!retainedCards.has(card)){const video=card.querySelector("video");if(video)video.srcObject=null;card.remove()}
@@ -1977,6 +2049,40 @@ function communitySelect(label,items,value,change){
   for(const item of items){const option=document.createElement('option');option.value=item.id??'';option.textContent=item.name;select.appendChild(option)}
   select.value=String(value??'');select.onchange=()=>change(select.value);wrap.appendChild(select);return wrap;
 }
+function inviteDialog(id,title){
+  document.getElementById(id)?.remove();const dialog=document.createElement('dialog');dialog.id=id;dialog.className='modal auth-modal';
+  const body=document.createElement('div');body.className='modal-body form-grid';const heading=document.createElement('h2');heading.textContent=title;
+  const close=document.createElement('button');close.textContent='Fechar';close.onclick=()=>dialog.close();body.append(heading);dialog.append(body,close);dialog.onclose=()=>dialog.remove();document.body.appendChild(dialog);dialog.showModal();return body;
+}
+function openInviteFriends(){
+  const body=inviteDialog('inviteFriendsDialog',`Convidar amigos para ${currentGuild()?.name||'comunidade'}`);
+  const search=document.createElement('input');search.placeholder='Buscar amigos';search.setAttribute('aria-label','Buscar amigos');search.id='inviteFriendSearch';
+  const list=document.createElement('div');list.id='inviteFriendList';list.style.cssText='max-height:40vh;overflow:auto';
+  const hours=communitySelect('Expiração',[{id:24,name:'24 horas'},{id:168,name:'7 dias'},{id:720,name:'30 dias'},{id:0,name:'Sem expiração'}],168,()=>{});
+  const uses=document.createElement('input');uses.type='number';uses.min='0';uses.max='10000';uses.value='0';uses.setAttribute('aria-label','Limite de usos; zero sem limite');
+  const create=document.createElement('button');create.textContent='Gerar convite';create.onclick=()=>{if(uses.reportValidity())send({type:'invite_create',guild_id:state.guildId,hours:Number(hours.querySelector('select').value),max_uses:Number(uses.value)})};
+  const link=document.createElement('input');link.id='inviteShareLink';link.readOnly=true;link.setAttribute('aria-label','Link do convite');
+  const copy=document.createElement('button');copy.textContent='Copiar';copy.onclick=()=>{if(link.value)navigator.clipboard.writeText(link.value).then(()=>toast('Convite copiado.','success')).catch(()=>{link.select();toast('Selecione e copie o link.','info')})};
+  body.append(search,list,hours,uses,create,link,copy);create.click();
+}
+function fillInviteFriends(invite){
+  const code=invite.code,host=settings.signalingUrl,list=document.getElementById('inviteFriendList'),search=document.getElementById('inviteFriendSearch');
+  document.getElementById('inviteShareLink').value=`${serverHttpBase()}/?invite=${encodeURIComponent(code)}`;
+  const render=()=>{list.replaceChildren();for(const friend of state.friends.filter(f=>`${f.display_name} ${f.username}`.toLowerCase().includes(search.value.toLowerCase()))){
+    const row=document.createElement('div');row.className='admin-list-row';const avatar=document.createElement('span');avatar.className='avatar';setAvatar(avatar,friend.avatar_media_id,friend.display_name,friend);const name=document.createElement('span');name.textContent=friend.display_name;
+    const button=document.createElement('button');button.textContent='Convidar';button.onclick=()=>{if(host===settings.signalingUrl&&send({type:'invite_send',code,user_id:friend.user_id})){button.disabled=true;button.textContent='Enviado'}};row.append(avatar,name,button);list.appendChild(row);
+  }};search.oninput=render;render();
+}
+function showCommunityInvite(invite){
+  const host=settings.signalingUrl,body=inviteDialog('communityInvitePreview',invite.name);
+  const image=document.createElement('span');image.className='avatar';setAvatar(image,invite.icon_media_id,invite.name);
+  const description=document.createElement('p');description.textContent=invite.description||'Você foi convidado para esta comunidade.';
+  const count=document.createElement('p');count.textContent=invite.private?'Comunidade privada':`${invite.online_count} online · ${invite.member_count} membros`;
+  const join=document.createElement('button');join.className='primary-btn';join.textContent='Juntar-se';join.onclick=()=>{if(host===settings.signalingUrl&&send({type:'invite_accept',code:invite.code}))document.getElementById('communityInvitePreview').close()};body.append(image,description,count,join);
+}
+const inviteHeader=document.createElement('button');inviteHeader.className='icon-btn';inviteHeader.textContent='＋';inviteHeader.title='Convidar amigos para comunidade';inviteHeader.setAttribute('aria-label',inviteHeader.title);inviteHeader.onclick=()=>{if(currentGuild())openInviteFriends()};els.guildName.parentElement.appendChild(inviteHeader);
+document.getElementById('groupFriendSearch').oninput=e=>{for(const row of els.dmUserPicker.children)row.hidden=!row.textContent.toLowerCase().includes(e.target.value.toLowerCase())};
+els.joinGuildForm.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();let code=els.inviteCodeInput.value.trim();try{code=new URL(code).searchParams.get('invite')||code}catch{}send({type:'invite_preview',code});els.joinGuildDialog.close()},true);
 els.channelTree.addEventListener('pointerdown',e=>{const row=e.target.closest('.channel-row');if(row)row.draggable=hasPerm('manage_channels')});
 els.channelTree.addEventListener('dragstart',e=>{
   if(!hasPerm('manage_channels'))return;
@@ -2022,6 +2128,9 @@ function renderCommunityControls(){
     if(owner&&!self){const transfer=document.createElement('button');transfer.textContent='Transferir propriedade';transfer.onclick=()=>confirmCommunityTransfer(user);row.appendChild(transfer)}
   }
   if(hasPerm('manage_server')){
+    const privateLabel=document.createElement('label'),privateInput=document.createElement('input');privateInput.type='checkbox';privateInput.checked=state.structure.guild?.private!==0;privateLabel.append(privateInput,document.createTextNode('Comunidade privada (ocultar contagem de membros nos convites)'));
+    const description=document.createElement('input');description.maxLength=300;description.value=state.structure.guild?.description||'';description.setAttribute('aria-label','Descrição da comunidade');description.placeholder='Descrição da comunidade';
+    const savePrivacy=document.createElement('button');savePrivacy.textContent='Salvar privacidade e descrição';savePrivacy.onclick=()=>send({type:'guild_visibility',guild_id:state.guildId,private:privateInput.checked,description:description.value});els.adminCategoryList.append(privateLabel,description,savePrivacy);
     const label=document.createElement('label');label.textContent='Foto da comunidade';const input=document.createElement('input');input.type='file';input.accept='image/*';
     input.onchange=async()=>{const file=input.files?.[0],guildId=state.guildId,token=state.uploadToken;if(!file)return;if(!file.type.startsWith('image/')||file.size>8*1024*1024)return toast('Escolha imagem de até 8 MiB.','error');try{const image=await uploadImage({file});if(token===state.uploadToken&&guildId===state.guildId)send({type:'guild_icon',guild_id:guildId,media_id:image.media_id})}catch(e){toast(e.message,'error')}};
     label.appendChild(input);els.adminCategoryList.appendChild(label);

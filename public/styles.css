@@ -213,6 +213,20 @@ body:not(.electron-app) #desktopSettingsTab{opacity:.5}
 #downloadPanel{position:fixed;right:18px;bottom:18px;z-index:1000;width:min(340px,calc(100vw - 36px));max-height:45vh;overflow:auto;padding:14px;background:#171e28;border:1px solid #354153;border-radius:12px;box-shadow:0 8px 30px #0008;font-size:12px}
 .download-row{display:grid;grid-template-columns:minmax(0,1fr) 26px;gap:7px;margin-top:12px;padding-top:10px;border-top:1px solid #354153}
 .download-row strong{overflow-wrap:anywhere}.download-row progress{grid-column:1;width:100%;height:12px;accent-color:var(--brand)}.download-row span{grid-column:1;color:#c2cad6}.download-row button{grid-column:2;grid-row:1;border:0;border-radius:5px;background:#303b4c;color:white;cursor:pointer}
+#inviteFriendList .avatar{display:block;width:32px;height:32px;min-width:32px;max-width:32px;flex:0 0 32px;overflow:hidden;border-radius:50%;position:relative}
+#inviteFriendList .avatar img,#inviteFriendList .avatar video{width:100%;height:100%;object-fit:cover}
+#inviteFriendList .admin-list-row{display:flex;align-items:center;gap:10px;min-height:48px}
+#inviteFriendList .admin-list-row>span:not(.avatar){flex:1;min-width:0;overflow-wrap:anywhere}
+.dm-invite-card{max-width:320px;padding:16px;margin-top:8px;border:1px solid #354153;border-radius:12px;background:#171e28}
+#voiceMiniChannel{cursor:pointer}#voiceMiniChannel:hover{text-decoration:underline}
+#guildVoiceTooltip{position:fixed;z-index:1500;pointer-events:none;max-width:280px;padding:12px;background:#11151c;border:1px solid #354153;border-radius:10px;box-shadow:0 6px 20px #0008;color:#eef2f7;font-size:12px}
+.guild-voice-preview{display:flex;align-items:center;gap:4px;margin-top:8px}
+.guild-voice-preview .avatar,.guild-voice-more{display:grid;place-items:center;position:relative;width:30px;height:30px;min-width:30px;border-radius:50%;overflow:hidden;background:#303744}
+.guild-voice-preview .avatar img,.guild-voice-preview .avatar video{width:100%;height:100%;object-fit:cover}
+.dm-row.dm-unread{color:#fff;font-weight:700}
+.dm-unread-badge{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-width:18px;height:18px;padding:0 4px;border-radius:10px;background:#ed4245;color:#fff;font-size:10px;font-weight:800;margin-left:auto}
+.dm-unread-badge[hidden]{display:none}
+#homeButton{position:relative}#homeButton>.dm-unread-badge{position:absolute;right:-4px;bottom:-4px;border:2px solid #090d12;margin:0}
 .server-bubble.brand.active{box-shadow:none}
 .guild-rail-list{width:62px;padding:2px 8px;box-sizing:border-box;flex-shrink:1;align-items:center}
 .guild-rail-list .server-bubble{position:relative;flex-shrink:0;padding:0;border:0;border-radius:50%;background:#252932;isolation:isolate;transition:border-radius .18s ease,background-color .18s ease}
