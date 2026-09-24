@@ -4,7 +4,8 @@ const $ = id => document.getElementById(id);
 const qsa = sel => Array.from(document.querySelectorAll(sel));
 const STORAGE_KEY = "opencall-v060-settings";
 const DEFAULT_STUN_URL = "stun:stun.l.google.com:19302";
-const DEFAULT_SIGNALING_URL = "wss://2d-instalacoes.tailc76287.ts.net:8443/ws";
+const DEFAULT_SIGNALING_URL = "wss://sultech.tailc76287.ts.net:8443/ws";
+const LEGACY_SIGNALING_URL = "wss://2d-instalacoes.tailc76287.ts.net:8443/ws";
 const AUTH_KEY = "opencall-v060-auth-token"; // legado: migrado para token por servidor na v0.7.47
 const CONNECTION_PROFILES_KEY = "opencall-v0747-connection-profiles";
 const CONNECTION_AUTH_PREFIX = "opencall-v0747-auth:";
@@ -65,7 +66,8 @@ function toast(msg,type="info",ms=3600){const n=document.createElement("div");n.
 
 function loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
   const migrated=normalizeScreenProfile(s.screenProfile||legacyScreenProfile(s.screenQuality)||SCREEN_PROFILE_DEFAULT);
-  return {signalingUrl:s.signalingUrl||DEFAULT_SIGNALING_URL,stunUrl:s.stunUrl||DEFAULT_STUN_URL,turnUrl:s.turnUrl||"",turnUsername:s.turnUsername||"",turnPassword:s.turnPassword||"",audioInput:s.audioInput||"",audioOutput:s.audioOutput||"",cameraId:s.cameraId||"",videoCodec:s.videoCodec||"auto",screenQualityMode:normalizeScreenQualityMode(s.screenQualityMode),screenProfile:migrated,voiceThreshold:Number(s.voiceThreshold||10),pushToTalk:Boolean(s.pushToTalk),desktopNotifications:Boolean(s.desktopNotifications),notifyMentions:s.notifyMentions!==false,notifyStreams:Boolean(s.notifyStreams),shareSystemAudio:s.shareSystemAudio!==false,noiseSuppressionMode:["off","webrtc","rnnoise"].includes(s.noiseSuppressionMode)?s.noiseSuppressionMode:"webrtc"};
+  const signalingUrl=s.signalingUrl===LEGACY_SIGNALING_URL?DEFAULT_SIGNALING_URL:(s.signalingUrl||DEFAULT_SIGNALING_URL);
+  return {signalingUrl,stunUrl:s.stunUrl||DEFAULT_STUN_URL,turnUrl:s.turnUrl||"",turnUsername:s.turnUsername||"",turnPassword:s.turnPassword||"",audioInput:s.audioInput||"",audioOutput:s.audioOutput||"",cameraId:s.cameraId||"",videoCodec:s.videoCodec||"auto",screenQualityMode:normalizeScreenQualityMode(s.screenQualityMode),screenProfile:migrated,voiceThreshold:Number(s.voiceThreshold||10),pushToTalk:Boolean(s.pushToTalk),desktopNotifications:Boolean(s.desktopNotifications),notifyMentions:s.notifyMentions!==false,notifyStreams:Boolean(s.notifyStreams),shareSystemAudio:s.shareSystemAudio!==false,noiseSuppressionMode:["off","webrtc","rnnoise"].includes(s.noiseSuppressionMode)?s.noiseSuppressionMode:"webrtc"};
 }
 let settings=loadSettings();
 function saveSettings(){settings.screenProfile=normalizeScreenProfile(settings.screenProfile);localStorage.setItem(STORAGE_KEY,JSON.stringify(settings))}
@@ -87,7 +89,7 @@ function saveAuthTokenForUrl(url,token){if(token)localStorage.setItem(connection
 function savedAccountForUrl(url){try{return JSON.parse(localStorage.getItem(connectionAccountKey(url))||"null")}catch{return null}}
 function saveAccountForUrl(url,profile){if(!profile)return;localStorage.setItem(connectionAccountKey(url),JSON.stringify({display_name:profile.display_name||profile.username||"Conta",username:profile.username||"",public_id:publicUserId(profile),user_id:profile.user_id||null}))}
 function defaultConnectionProfile(){return {id:"public",name:"OpenCall Público",url:DEFAULT_SIGNALING_URL,builtin:true,created_at:0}}
-function loadConnectionProfiles(){let list=[];try{list=JSON.parse(localStorage.getItem(CONNECTION_PROFILES_KEY)||"[]")}catch{}if(!Array.isArray(list))list=[];const out=[],seen=new Set();const add=(item)=>{try{const url=normalizeSignalingUrl(item?.url||"");if(seen.has(url))return;seen.add(url);out.push({id:safeText(item?.id)||`host-${randomId(6)}`,name:safeText(item?.name).trim()||new URL(url).hostname,url,builtin:Boolean(item?.builtin),created_at:Number(item?.created_at)||Date.now(),last_used:Number(item?.last_used)||0})}catch{}};add(defaultConnectionProfile());for(const item of list)add(item);try{const current=normalizeSignalingUrl(settings.signalingUrl);if(!seen.has(current))add({id:`host-${randomId(6)}`,name:"Servidor atual",url:current,last_used:Date.now()})}catch{}return out}
+function loadConnectionProfiles(){let list=[];try{list=JSON.parse(localStorage.getItem(CONNECTION_PROFILES_KEY)||"[]")}catch{}if(!Array.isArray(list))list=[];const out=[],seen=new Set();const add=(item)=>{try{let url=normalizeSignalingUrl(item?.url||"");if(url===LEGACY_SIGNALING_URL)url=DEFAULT_SIGNALING_URL;if(seen.has(url))return;seen.add(url);out.push({id:safeText(item?.id)||`host-${randomId(6)}`,name:url===DEFAULT_SIGNALING_URL?"OpenCall Público":safeText(item?.name).trim()||new URL(url).hostname,url,builtin:Boolean(item?.builtin)||url===DEFAULT_SIGNALING_URL,created_at:Number(item?.created_at)||Date.now(),last_used:Number(item?.last_used)||0})}catch{}};add(defaultConnectionProfile());for(const item of list)add(item);try{const current=normalizeSignalingUrl(settings.signalingUrl);if(!seen.has(current))add({id:`host-${randomId(6)}`,name:"Servidor atual",url:current,last_used:Date.now()})}catch{}return out}
 let connectionProfiles=loadConnectionProfiles();
 function saveConnectionProfiles(){localStorage.setItem(CONNECTION_PROFILES_KEY,JSON.stringify(connectionProfiles))}
 function currentConnectionProfile(){let current=settings.signalingUrl;try{current=normalizeSignalingUrl(current)}catch{}return connectionProfiles.find(x=>x.url===current)||{id:"current",name:"Servidor atual",url:current,builtin:false}}
@@ -239,7 +241,7 @@ const state={
   avatarFrame:{zoom:1,x:0,y:0,dragging:false,startX:0,startY:0,baseX:0,baseY:0},
 };
 
-function serverHttpBase(){try{const u=new URL(settings.signalingUrl);return `${u.protocol==="wss:"?"https:":"http:"}//${u.host}`}catch{return "https://2d-instalacoes.tailc76287.ts.net:8443"}}
+function serverHttpBase(){try{const u=new URL(settings.signalingUrl);return `${u.protocol==="wss:"?"https:":"http:"}//${u.host}`}catch{return "https://sultech.tailc76287.ts.net:8443"}}
 function mediaUrl(id,download=false){if(!id||!state.uploadToken)return "";return `${serverHttpBase()}/media/${encodeURIComponent(id)}?token=${encodeURIComponent(state.uploadToken)}${download?"&download=true":""}`}
 const avatarMediaCache=new Map();
 function avatarCacheKey(mediaId){return safeText(mediaId)}

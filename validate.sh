@@ -249,7 +249,7 @@ html=Path('public/index.html').read_text(encoding='utf-8')
 srv=Path('server/build-opencall-local-server-appimage-0.7.1-guild-leave-delete.sh').read_text(encoding='utf-8')
 pkg=json.loads(Path('electron/package.json').read_text(encoding='utf-8'))
 assert pkg['version'] in ('0.7.46','0.7.47','0.7.48','0.7.49','0.7.58','0.7.59','0.7.60','0.7.61')
-assert 'DEFAULT_SIGNALING_URL = "wss://2d-instalacoes.tailc76287.ts.net:8443/ws"' in app
+assert 'DEFAULT_SIGNALING_URL = "wss://sultech.tailc76287.ts.net:8443/ws"' in app
 assert 'friendsButton' in html and 'friendsDialog' in html and 'friendSearchInput' in html
 assert 'publicUserId' in app and 'friend_request' in app and 'friend_accept' in app and 'friends_list' in app
 assert 'user_tag TEXT' in srv and 'idx_users_display_tag' in srv and 'friend_requests' in srv and 'friendships' in srv
@@ -272,7 +272,7 @@ assert pkg['version'] in ('0.7.46','0.7.47','0.7.48','0.7.49','0.7.58','0.7.59',
 assert 'data-tab="tutorial"' in html and 'data-page="tutorial"' in html, 'aba Tutorial ausente'
 assert 'tutorialCurrentConnection' in html and 'tutorialOpenConnectionButton' in html and 'tutorialUsePublicButton' in html, 'controles do tutorial ausentes'
 assert 'Servidor de conexão' in html and 'Comunidades / servidores internos' in html, 'distinção host/comunidade ausente'
-assert 'wss://2d-instalacoes.tailc76287.ts.net:8443/ws' in html, 'servidor público não aparece no tutorial'
+assert 'wss://sultech.tailc76287.ts.net:8443/ws' in html, 'servidor público não aparece no tutorial'
 assert 'ws://192.168.1.50:8765/ws' in html, 'exemplo de servidor privado local ausente'
 assert 'TUTORIAL_SEEN_PREFIX' in app and 'maybeOpenTutorialAfterRegistration' in app, 'first-run tutorial ausente'
 assert 'state.authMode!=="register"' in app and 'openSettings("tutorial")' in app, 'tutorial não abre após cadastro'
