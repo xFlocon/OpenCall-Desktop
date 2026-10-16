@@ -64,12 +64,23 @@ function formatBytes(n){n=Number(n)||0;if(n<1024)return `${n} B`;const u=["KB","
 function formatTime(sec){try{return new Intl.DateTimeFormat("pt-BR",{hour:"2-digit",minute:"2-digit"}).format(new Date(Number(sec)*1000))}catch{return ""}}
 function toast(msg,type="info",ms=3600){const n=document.createElement("div");n.className=`toast ${type}`;n.textContent=msg;els.toastStack.appendChild(n);setTimeout(()=>n.remove(),ms)}
 
+function normalizeFontScale(value){const number=Number(value);return Number.isFinite(number)?Math.max(100,Math.min(200,Math.round(number/25)*25)):100}
+function scaleFontRules(rules){
+  // ponytail: scale local pixel font rules; use rem throughout CSS if external themes are added.
+  for(const rule of rules){const size=rule.style?.getPropertyValue('font-size');if(/^\d+(?:\.\d+)?px$/.test(size))rule.style.setProperty('font-size',`calc(${size} * var(--font-scale, 1))`,rule.style.getPropertyPriority('font-size'));if(rule.cssRules)scaleFontRules(rule.cssRules)}
+}
+function applyFontScale(value){const scale=normalizeFontScale(value);document.documentElement.style.setProperty('--font-scale',String(scale/100));document.documentElement.style.fontSize=`${16*scale/100}px`;if($('fontScaleInput'))$('fontScaleInput').value=String(scale);if($('fontScaleValue'))$('fontScaleValue').textContent=`${scale}%`}
 function loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
   const migrated=normalizeScreenProfile(s.screenProfile||legacyScreenProfile(s.screenQuality)||SCREEN_PROFILE_DEFAULT);
   const signalingUrl=s.signalingUrl===LEGACY_SIGNALING_URL?DEFAULT_SIGNALING_URL:(s.signalingUrl||DEFAULT_SIGNALING_URL);
-  return {signalingUrl,stunUrl:s.stunUrl||DEFAULT_STUN_URL,turnUrl:s.turnUrl||"",turnUsername:s.turnUsername||"",turnPassword:s.turnPassword||"",audioInput:s.audioInput||"",audioOutput:s.audioOutput||"",cameraId:s.cameraId||"",videoCodec:s.videoCodec||"auto",screenQualityMode:normalizeScreenQualityMode(s.screenQualityMode),screenProfile:migrated,voiceThreshold:Number(s.voiceThreshold||10),pushToTalk:Boolean(s.pushToTalk),desktopNotifications:Boolean(s.desktopNotifications),notifyMentions:s.notifyMentions!==false,notifyStreams:Boolean(s.notifyStreams),shareSystemAudio:s.shareSystemAudio!==false,noiseSuppressionMode:["off","webrtc","rnnoise"].includes(s.noiseSuppressionMode)?s.noiseSuppressionMode:"webrtc"};
+  return {signalingUrl,fontScale:normalizeFontScale(s.fontScale??100),stunUrl:s.stunUrl||DEFAULT_STUN_URL,turnUrl:s.turnUrl||"",turnUsername:s.turnUsername||"",turnPassword:s.turnPassword||"",audioInput:s.audioInput||"",audioOutput:s.audioOutput||"",cameraId:s.cameraId||"",videoCodec:s.videoCodec||"auto",screenQualityMode:normalizeScreenQualityMode(s.screenQualityMode),screenProfile:migrated,voiceThreshold:Number(s.voiceThreshold||10),pushToTalk:Boolean(s.pushToTalk),desktopNotifications:Boolean(s.desktopNotifications),notifyMentions:s.notifyMentions!==false,notifyStreams:Boolean(s.notifyStreams),shareSystemAudio:s.shareSystemAudio!==false,noiseSuppressionMode:["off","webrtc","rnnoise"].includes(s.noiseSuppressionMode)?s.noiseSuppressionMode:"webrtc"};
 }
 let settings=loadSettings();
+for(const sheet of document.styleSheets){try{scaleFontRules(sheet.cssRules)}catch(error){if(error.name!=='SecurityError')throw error}}
+applyFontScale(settings.fontScale);
+function saveFontScale(value){settings.fontScale=normalizeFontScale(value);applyFontScale(settings.fontScale);saveSettings()}
+$('fontScaleInput').oninput=event=>saveFontScale(event.target.value);
+$('resetFontScaleButton').onclick=()=>saveFontScale(100);
 function saveSettings(){settings.screenProfile=normalizeScreenProfile(settings.screenProfile);localStorage.setItem(STORAGE_KEY,JSON.stringify(settings))}
 function normalizeSignalingUrl(value){
   let raw=safeText(value).trim();if(!raw)throw new Error("Informe o endereço do servidor.");
@@ -728,7 +739,34 @@ function openVoiceChannel(id,{autoJoin=true}={}){const ch=state.structure.channe
 function receiveChatMessage(m){const cid=Number(m.channel_id);const list=state.messages.get(cid)||[];if(!list.some(x=>x.id===m.id)){list.push(m);state.messages.set(cid,list)}if(state.currentView==="chat"&&Number(state.channelId)===cid){renderChat(true);send({type:"channel_read",channel_id:cid})}else if(Number(m.sender?.user_id)!==Number(state.profile?.user_id)){state.unread.set(cid,(state.unread.get(cid)||0)+1);renderChannels()}notifyForMessage(m)}
 function updateChatMessage(m){if(!m)return;const cid=Number(m.channel_id),list=state.messages.get(cid)||[];const i=list.findIndex(x=>x.id===m.id);if(i>=0)list[i]=m;else list.push(m);state.messages.set(cid,list);if(state.currentView==="chat"&&Number(state.channelId)===cid)renderChat(false)}
 function renderChat(scroll=false){const list=state.messages.get(Number(state.channelId))||[];els.channelWelcome.classList.toggle("hidden",list.length>0);els.messageList.replaceChildren();for(const m of list)els.messageList.appendChild(messageNode(m));if(scroll)requestAnimationFrame(()=>els.messageScroller.scrollTop=els.messageScroller.scrollHeight)}
-function linkifyMentions(text){const safe=escapeHtml(text);return safe.replace(/@([A-Za-z0-9_.-]+)/g,'<span class="mention">@$1</span>').replace(/\n/g,"<br>")}
+function linkifyMentions(text){
+  const plain=value=>escapeHtml(value).replace(/@([A-Za-z0-9_.-]+)/g,'<span class="mention">@$1</span>').replace(/\n/g,'<br>');
+  // ponytail: HTTP(S), domains, IPv4 and bracketed IPv6; add protocol-specific launchers only when supported.
+  const addresses=/(?<![\p{L}\p{N}_@:/.-])(?:https?:\/\/[^\s<>"'`\u0000-\u001f]+|(?:\[[0-9a-f:.]+\]|(?:\d{1,3}\.){3}\d{1,3}|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:[a-z]{2,}|xn--[a-z0-9-]+))(?::\d{1,5})?(?:[/?#][^\s<>"'`\u0000-\u001f]*)?)(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}_])/giu;
+  let html='',offset=0;const source=safeText(text);
+  for(const match of source.matchAll(addresses)){
+    let address=match[0].replace(/[.,!?;:]+$/,'');
+    for(const [open,close] of [['(',')'],['[',']'],['{','}']])while(address.endsWith(close)&&address.split(close).length>address.split(open).length)address=address.slice(0,-1);
+    const explicit=/^https?:\/\//i.test(address);
+    let url;try{url=new URL(explicit?address:`https://${address}`);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)continue}catch{continue}
+    const authority=address.replace(/^https?:\/\//i,'').split(/[/?#]/)[0];
+    if(/^\d+(?:\.\d+){3}(?::\d+)?$/.test(authority)&&authority.split(':')[0].split('.').some(part=>Number(part)>255||String(Number(part))!==part))continue;
+    const port=/:([0-9]+)$/.exec(authority);if(port&&(Number(port[1])<1||Number(port[1])>65535))continue;
+    const copyOnly=!explicit&&(port||/^\[|^\d+(?:\.\d+){3}$/.test(authority));
+    const label=escapeHtml(address),attribute=escapeHtml(address);
+    html+=plain(source.slice(offset,match.index));
+    html+=copyOnly?`<button type="button" class="message-address" data-copy-address="${attribute}" title="Copiar endereço" aria-label="Copiar endereço ${attribute}">${label}</button>`:`<a class="message-link" href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    html+=`<button type="button" class="message-address-copy" data-copy-address="${attribute}" title="Copiar ${attribute}" aria-label="Copiar ${attribute}">Copiar</button>`;
+    offset=match.index+address.length;
+  }
+  return html+plain(source.slice(offset));
+}
+document.addEventListener('click',async event=>{
+  const button=event.target.closest('.message-content [data-copy-address]');if(!button)return;
+  event.preventDefault();event.stopPropagation();
+  try{await navigator.clipboard.writeText(button.dataset.copyAddress);toast('Endereço copiado.','success')}
+  catch{const range=document.createRange();range.selectNodeContents(button.classList.contains('message-address')?button:button.previousElementSibling);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);toast('Não foi possível copiar. Endereço selecionado; use Ctrl+C.','error')}
+});
 function messageNode(m){const row=document.createElement("article");row.className="message";row.dataset.id=m.id;const av=document.createElement("span");av.className="avatar message-avatar";setAvatar(av,m.sender?.avatar_media_id,m.sender?.display_name||m.sender?.username,m.sender||{});const main=document.createElement("div");main.className="message-main";
   if(m.reply){const rp=document.createElement("div");rp.className="reply-preview";rp.textContent=`↪ ${m.reply.display_name}: ${m.reply.content?.slice(0,100)||"mensagem"}`;main.appendChild(rp)}
   const meta=document.createElement("div");meta.className="message-meta";meta.innerHTML=`<span class="message-author">${escapeHtml(m.sender?.display_name||m.sender?.username||"Usuário")}</span><span class="message-time">${formatTime(m.created_at)}</span>${m.edited_at?'<span class="message-edited">(editada)</span>':""}${m.pinned?'<span class="pinned-marker">📌 fixada</span>':""}`;main.appendChild(meta);

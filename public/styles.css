@@ -223,6 +223,14 @@ body:not(.electron-app) #desktopSettingsTab{opacity:.5}
 .guild-voice-preview{display:flex;align-items:center;gap:4px;margin-top:8px}
 .guild-voice-preview .avatar,.guild-voice-more{display:grid;place-items:center;position:relative;width:30px;height:30px;min-width:30px;border-radius:50%;overflow:hidden;background:#303744}
 .guild-voice-preview .avatar img,.guild-voice-preview .avatar video{width:100%;height:100%;object-fit:cover}
+.font-size-preview{padding:16px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+.settings-nav{overflow-y:auto;min-height:0}.settings-tab{flex-shrink:0}
+.message-content .message-link,.message-content .message-address{color:#58b7ff;overflow-wrap:anywhere;text-decoration:none}
+.message-content .message-address{display:inline;padding:0;border:0;background:none;font:inherit;text-align:left;cursor:pointer;user-select:text}
+.message-content .message-link:hover,.message-content .message-address:hover{text-decoration:underline}
+.message-content .message-address-copy{display:inline;padding:1px 5px;margin-left:4px;border:1px solid #445366;border-radius:4px;background:transparent;color:#a4d8ff;font-size:11px;vertical-align:baseline;cursor:pointer}
+.message-content .message-address-copy:hover{background:#243447}
+.message-content :is(.message-link,.message-address,.message-address-copy):focus-visible{outline:2px solid #58b7ff;outline-offset:2px}
 .dm-row.dm-unread{color:#fff;font-weight:700}
 .dm-unread-badge{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-width:18px;height:18px;padding:0 4px;border-radius:10px;background:#ed4245;color:#fff;font-size:10px;font-weight:800;margin-left:auto}
 .dm-unread-badge[hidden]{display:none}

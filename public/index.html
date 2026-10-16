@@ -290,6 +290,7 @@
     <div class="settings-layout">
       <nav class="settings-nav">
         <button class="settings-tab active" data-tab="profile">Perfil</button>
+        <button class="settings-tab" data-tab="appearance">Aparência</button>
         <button class="settings-tab" data-tab="tutorial">Tutorial</button>
         <button class="settings-tab" data-tab="audio">Áudio</button>
         <button class="settings-tab" data-tab="video">Vídeo</button>
@@ -338,6 +339,14 @@
           <label>Status<select id="profileStatus"><option value="online">Online</option><option value="idle">Ausente</option><option value="dnd">Não perturbe</option><option value="invisible">Invisível</option></select></label>
           <label>Status personalizado<input id="profileCustomStatus" maxlength="120" placeholder="O que você está fazendo?"></label>
           <button id="saveProfileButton" class="primary-btn">Salvar perfil</button>
+        </section>
+        <section class="settings-page" data-page="appearance">
+          <h2>Aparência</h2>
+          <label for="fontScaleInput">Tamanho da fonte: <output id="fontScaleValue" for="fontScaleInput">100%</output></label>
+          <input id="fontScaleInput" type="range" min="100" max="200" step="25" value="100" aria-describedby="fontScaleHelp">
+          <p id="fontScaleHelp" class="settings-page-intro">Ajuste de 100% a 200% para mensagens, menus e configurações. Experimente 150% em um monitor 1080p. Aplicado na hora e salvo neste computador.</p>
+          <div class="font-size-preview"><strong>Prévia da fonte</strong><p class="message-content">Assim ficam as mensagens nas comunidades e DMs.</p><span class="message-time">Horário e informações secundárias</span></div>
+          <button id="resetFontScaleButton" class="secondary-btn" type="button">Restaurar 100%</button>
         </section>
         <section class="settings-page" data-page="audio">
           <h2>Voz e áudio</h2>

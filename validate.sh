@@ -14,6 +14,8 @@ bash -n "$ROOT/run-opencall.sh" "$ROOT/run-dev-electron.sh" "$ROOT/build-appimag
 if command -v node >/dev/null 2>&1; then
   node --check "$ROOT/public/app.js"
   node "$ROOT/scripts/check-transfer.cjs"
+  node "$ROOT/scripts/check-message-links.cjs"
+  node "$ROOT/scripts/check-font-scale.cjs"
   node --check "$ROOT/electron/main.cjs"
   node --check "$ROOT/electron/preload.cjs"
 else

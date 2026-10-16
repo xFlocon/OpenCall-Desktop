@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../public/app.js'),'utf8');
+const values={},elements={fontScaleInput:{},fontScaleValue:{}};
+const context={document:{documentElement:{style:{setProperty:(key,value)=>values[key]=value}}},$:id=>elements[id]};
+vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('function normalizeFontScale('),source.indexOf('function loadSettings(')),context);
+for(const [input,expected] of [[undefined,100],['bad',100],[Infinity,100],[0,100],[99,100],[100,100],['150',150],[175,175],[900,200]])assert.equal(context.normalizeFontScale(input),expected);
+let size='10px';const rule={style:{getPropertyValue:()=>size,getPropertyPriority:()=>'',setProperty:(key,value)=>{size=value}}};
+context.scaleFontRules([{cssRules:[rule]}]);assert.equal(size,'calc(10px * var(--font-scale, 1))');
+context.scaleFontRules([rule]);assert.equal(size,'calc(10px * var(--font-scale, 1))','must not double-scale');
+context.applyFontScale(150);assert.equal(values['--font-scale'],'1.5');assert.equal(context.document.documentElement.style.fontSize,'24px');assert.equal(elements.fontScaleInput.value,'150');assert.equal(elements.fontScaleValue.textContent,'150%');
+context.applyFontScale(100);assert.equal(values['--font-scale'],'1');
+assert.ok(source.includes('fontScale:normalizeFontScale(s.fontScale??100)'));
+assert.ok(source.includes('function saveFontScale(value){settings.fontScale=normalizeFontScale(value);applyFontScale(settings.fontScale);saveSettings()}'));
+console.log('Font scale: 100–200%, validation, nested CSS rules, live preview and persistence wiring OK');
