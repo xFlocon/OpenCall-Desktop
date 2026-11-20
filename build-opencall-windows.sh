@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 
 # v2: corrige instalação do NSIS no Arch Linux (AUR)
-REQUIRED_VERSION="0.7.61"
 ELECTRON_VERSION="${ELECTRON_VERSION:-44.3.0}"
 TARGET_ARCH="${TARGET_ARCH:-x64}"
 AUTO_INSTALL_DEPS="${AUTO_INSTALL_DEPS:-1}"
@@ -104,7 +103,7 @@ install_deps
 
 CACHE_DIR="${OPENCALL_BUILD_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/opencall-windows-builder}"
 mkdir -p "$CACHE_DIR"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/opencall761-win.XXXXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/opencall-win.XXXXXXXX")"
 trap 'rc=$?; rm -rf "$WORK_DIR"; exit $rc' EXIT INT TERM HUP
 
 find_root(){
@@ -130,11 +129,11 @@ else
   SOURCE_ROOT="$(find_root "$PWD" | head -n1 || true)"
   [[ -n "$SOURCE_ROOT" ]] || SOURCE_ROOT="$(find_root "$SELF_DIR" | head -n1 || true)"
   if [[ -z "$SOURCE_ROOT" ]]; then
-    Z="$(find "$PWD" "$SELF_DIR" -maxdepth 1 -type f -name 'OpenCall-Desktop-Electron-v0.7.61*.zip' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)"
+    Z="$(find "$PWD" "$SELF_DIR" -maxdepth 1 -type f -name 'OpenCall-Desktop-Electron-v*.zip' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)"
     [[ -n "$Z" ]] && { mkdir -p "$WORK_DIR/source"; unzip -q "$Z" -d "$WORK_DIR/source"; SOURCE_ROOT="$(find_root "$WORK_DIR/source" | head -n1 || true)"; BASE_OUTPUT_DIR="$(dirname "$Z")"; }
   fi
 fi
-[[ -n "$SOURCE_ROOT" ]] || die "Fonte OpenCall v0.7.61 não encontrada."
+[[ -n "$SOURCE_ROOT" ]] || die "Fonte OpenCall não encontrada."
 
 for f in VERSION LICENSE validate.sh electron/main.cjs electron/preload.cjs electron/package.json public/index.html public/styles.css public/app.js scripts/fetch-rnnoise-wasm.sh; do
   [[ -f "$SOURCE_ROOT/$f" ]] || die "Arquivo obrigatório ausente: $f"
@@ -145,7 +144,7 @@ import json,sys
 print(json.load(open(sys.argv[1],encoding='utf-8')).get('version',''))
 PY
 )"
-[[ "$APP_VERSION" == "$REQUIRED_VERSION" ]] || die "Builder exige v$REQUIRED_VERSION; recebeu ${APP_VERSION:-?}."
+[[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$APP_VERSION" == "$(tr -d '\r\n' < "$SOURCE_ROOT/VERSION")" ]] || die "Versões de VERSION e package.json inválidas ou diferentes."
 
 OUT_DIR="${OUT_DIR:-$BASE_OUTPUT_DIR/dist-windows}"
 mkdir -p "$OUT_DIR"; OUT_DIR="$(realpath "$OUT_DIR")"
@@ -343,7 +342,7 @@ for x in ['Direct3D 11 / ANGLE (Windows)','Hardware / GPU']:
     if x not in h: raise SystemExit('Porte Windows HTML incompleto: '+x)
 
 mainp.write_text(m,encoding='utf-8'); appp.write_text(a,encoding='utf-8'); htmlp.write_text(h,encoding='utf-8')
-print('Porte Windows v0.7.61: OK')
+print('Porte Windows: OK')
 PY_PATCH
 
 node --check "$APP_SRC/main.cjs"

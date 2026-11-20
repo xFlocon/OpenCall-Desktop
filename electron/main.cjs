@@ -6,7 +6,7 @@ const path = require('path');
 const os = require('os');
 const { execFileSync, spawn } = require('child_process');
 
-const APP_VERSION = '0.7.61';
+const APP_VERSION = '0.7.62';
 const APP_NAME = 'OpenCall Desktop';
 const PROJECT_ROOT = fs.existsSync(path.join(__dirname, 'public')) ? __dirname : path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');

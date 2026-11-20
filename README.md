@@ -57,7 +57,7 @@ bash build-appimage.sh
 Output:
 
 ```text
-dist/OpenCall-Desktop-0.7.61-x86_64.AppImage
+dist/OpenCall-Desktop-0.7.62-x86_64.AppImage
 ```
 
 ## Build Windows Client on Linux
@@ -65,7 +65,7 @@ dist/OpenCall-Desktop-0.7.61-x86_64.AppImage
 Requires NSIS (`makensis`). The script can install supported dependencies when `AUTO_INSTALL_DEPS=1`.
 
 ```bash
-bash build-opencall-windows-v0.7.61-v2-arch-fix.sh .
+bash build-opencall-windows.sh .
 ```
 
 Default output directory:

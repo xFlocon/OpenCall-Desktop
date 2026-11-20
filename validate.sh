@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 BUILDER="$ROOT/server/build-opencall-local-server-appimage-0.7.1-guild-leave-delete.sh"
 
-echo "==> Validando OpenCall Desktop Electron 0.7.61"
+echo "==> Validando OpenCall Desktop Electron $(cat "$ROOT/VERSION")"
 command -v python3 >/dev/null || { echo "python3 ausente" >&2; exit 1; }
 python3 -m py_compile "$ROOT/scripts/serve.py"
 python3 "$ROOT/scripts/check-membership.py"
@@ -16,6 +16,7 @@ if command -v node >/dev/null 2>&1; then
   node "$ROOT/scripts/check-transfer.cjs"
   node "$ROOT/scripts/check-message-links.cjs"
   node "$ROOT/scripts/check-font-scale.cjs"
+  node "$ROOT/scripts/check-system-audio.cjs"
   node --check "$ROOT/electron/main.cjs"
   node --check "$ROOT/electron/preload.cjs"
 else
@@ -48,7 +49,7 @@ assert "process.env.DRI_PRIME = preferred.driPrime" not in main, 'DRI_PRIME aind
 print('v0.7.43 Linux GPU isolation/visibility: OK')
 
 pkg=json.loads((root/'electron/package.json').read_text(encoding='utf-8'))
-assert pkg['main']=='main.cjs' and pkg['version'] in ('0.7.58','0.7.59','0.7.60','0.7.61')
+assert pkg['main']=='main.cjs' and pkg['version']==(root/'VERSION').read_text().strip()
 print('Electron package.json: OK')
 
 shell=builder.read_text(encoding='utf-8')
@@ -250,7 +251,7 @@ app=Path('public/app.js').read_text(encoding='utf-8')
 html=Path('public/index.html').read_text(encoding='utf-8')
 srv=Path('server/build-opencall-local-server-appimage-0.7.1-guild-leave-delete.sh').read_text(encoding='utf-8')
 pkg=json.loads(Path('electron/package.json').read_text(encoding='utf-8'))
-assert pkg['version'] in ('0.7.46','0.7.47','0.7.48','0.7.49','0.7.58','0.7.59','0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 assert 'DEFAULT_SIGNALING_URL = "wss://sultech.tailc76287.ts.net:8443/ws"' in app
 assert 'friendsButton' in html and 'friendsDialog' in html and 'friendSearchInput' in html
 assert 'publicUserId' in app and 'friend_request' in app and 'friend_accept' in app and 'friends_list' in app
@@ -270,7 +271,7 @@ app=Path('public/app.js').read_text(encoding='utf-8')
 html=Path('public/index.html').read_text(encoding='utf-8')
 css=Path('public/styles.css').read_text(encoding='utf-8')
 pkg=json.loads(Path('electron/package.json').read_text(encoding='utf-8'))
-assert pkg['version'] in ('0.7.46','0.7.47','0.7.48','0.7.49','0.7.58','0.7.59','0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 assert 'data-tab="tutorial"' in html and 'data-page="tutorial"' in html, 'aba Tutorial ausente'
 assert 'tutorialCurrentConnection' in html and 'tutorialOpenConnectionButton' in html and 'tutorialUsePublicButton' in html, 'controles do tutorial ausentes'
 assert 'Servidor de conexão' in html and 'Comunidades / servidores internos' in html, 'distinção host/comunidade ausente'
@@ -311,7 +312,7 @@ a=(root/'public/app.js').read_text(encoding='utf-8')
 h=(root/'public/index.html').read_text(encoding='utf-8')
 srv=(root/'server/build-opencall-local-server-appimage-0.7.1-guild-leave-delete.sh').read_text(encoding='utf-8')
 pkg=json.loads((root/'electron/package.json').read_text(encoding='utf-8'))
-assert pkg['version'] in ('0.7.48','0.7.49','0.7.58','0.7.59','0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 for x in ('dmVoiceCallButton','dmVideoCallButton','dmScreenCallButton','dmIncomingCallDialog'):
     assert x in h and x in a, f'UI DM call ausente: {x}'
 for x in ('startDmCall','onDmCallInvite','onDmCallJoined','dm_call_signal','dm_call_state','dm_call_speaking'):
@@ -336,7 +337,7 @@ h=(root/'public/index.html').read_text(encoding='utf-8')
 c=(root/'public/styles.css').read_text(encoding='utf-8')
 srv=(root/'server/build-opencall-local-server-appimage-0.7.1-guild-leave-delete.sh').read_text(encoding='utf-8')
 pkg=json.loads((root/'electron/package.json').read_text(encoding='utf-8'))
-assert pkg['version'] in ('0.7.58','0.7.59','0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 assert 'id="connectionManagerButton"' not in h, 'botão de hosts ainda ocupa a barra lateral'
 assert 'id="connectionManagerDialog"' not in h, 'gerenciador de hosts ainda é modal separado'
 assert 'data-tab="servers"' in h and 'data-page="servers"' in h, 'aba Servidores das Configurações ausente'
@@ -363,7 +364,7 @@ a=(root/'public/app.js').read_text(encoding='utf-8')
 h=(root/'public/index.html').read_text(encoding='utf-8')
 c=(root/'public/styles.css').read_text(encoding='utf-8')
 pkg=json.loads((root/'electron/package.json').read_text(encoding='utf-8'))
-assert pkg['version'] in ('0.7.58','0.7.59','0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 for x in ('homeButton','guildSidebarContent','homeSidebarContent','friendsView','friendsTabOnline','friendsTabAll','friendsTabPending','friendsTabAdd','friendsHomeList','friendsHomeSearchForm'):
     assert f'id="{x}"' in h, f'UI Home/Amigos ausente: {x}'
 assert 'function openFriendsHome' in a and 'function renderFriendsHome' in a and 'function updateSidebarMode' in a
@@ -391,7 +392,7 @@ m=Path('electron/main.cjs').read_text(encoding='utf-8')
 a=Path('public/app.js').read_text(encoding='utf-8')
 h=Path('public/index.html').read_text(encoding='utf-8')
 p=json.loads(Path('electron/package.json').read_text())
-assert p['version'] in ('0.7.58','0.7.59','0.7.60','0.7.61')
+assert p['version']==Path('VERSION').read_text().strip()
 assert 'encoderMode' in m and "['auto', 'hardware', 'software']" in m
 assert "disable-features', 'AcceleratedVideoEncoder'" in m
 assert 'encoderModeSelect' in h and 'Hardware / VA-API' in h and 'Software / CPU' in h
@@ -422,7 +423,7 @@ from pathlib import Path
 import json
 m=Path('electron/main.cjs').read_text(); p=Path('electron/preload.cjs').read_text(); a=Path('public/app.js').read_text()
 pkg=json.loads(Path('electron/package.json').read_text())
-assert pkg['version'] in ('0.7.59','0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 assert "desktop:webrtc-stats" in m and "desktop:webrtc-stats" in p and 'logWebrtcStats' in p
 assert 'collectScreenPeerDiagnostics' in a and 'startScreenPeerDiagnostics' in a and 'startRemoteFrameTimingDiag' in a
 for key in ['framesEncoded','framesSent','framesReceived','framesDecoded','framesDropped','packetsLost','nackCount','pliCount','roundTripTime','qpSum','repeatEst','presentGaps']:
@@ -438,7 +439,7 @@ from pathlib import Path
 import json
 m=Path('electron/main.cjs').read_text(); p=Path('electron/preload.cjs').read_text(); a=Path('public/app.js').read_text(); h=Path('public/index.html').read_text(); c=Path('public/styles.css').read_text()
 pkg=json.loads(Path('electron/package.json').read_text())
-assert pkg['version'] in ('0.7.60','0.7.61')
+assert pkg['version']==Path('VERSION').read_text().strip()
 assert 'zeroCopyMode' in m and "['auto', 'safe', 'zero-copy']" in m
 assert "disable-zero-copy" in m and "enable-zero-copy" in m
 assert 'zeroCopyModeSelect' in h and 'Cópia segura' in h and 'Zero-copy' in h
@@ -456,7 +457,7 @@ from pathlib import Path
 import json
 a=Path('public/app.js').read_text(); h=Path('public/index.html').read_text(); c=Path('public/styles.css').read_text(); m=Path('electron/main.cjs').read_text()
 pkg=json.loads(Path('electron/package.json').read_text())
-assert pkg['version']=='0.7.61' and "APP_VERSION = '0.7.61'" in m
+assert pkg['version']==Path('VERSION').read_text().strip() and f"APP_VERSION = '{pkg['version']}'" in m
 assert 'id="dmCallHost"' in h and 'dm-call-host' in c
 assert 'function mountCallUiInDm()' in a and 'function restoreCallUiHome()' in a
 assert 'switchView("dm");mountCallUiInDm()' in a

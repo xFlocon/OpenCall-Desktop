@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../public/app.js'),'utf8');
+const calls=[],applied=[],warnings=[];
+const track={applyConstraints:async constraints=>applied.push(constraints)};
+const video={frameRate:{ideal:60,max:60},width:{ideal:1920,max:1920}};
+let platform='win32';
+const context={console:{warn:(...args)=>warnings.push(args)},navigator:{mediaDevices:{getDisplayMedia:async constraints=>{calls.push(constraints);return {getAudioTracks:()=>constraints.audio?[track]:[]}}}},window:{openCallDesktop:{}},settings:{shareSystemAudio:true},getDesktopCaptureEnvironment:async()=>({platform,nativeDisplayPickerPreferred:true})};
+vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('function systemAudioConstraints('),source.indexOf('// DMs e grupos privados',source.indexOf('function systemAudioConstraints('))),context);
+const clean=constraints=>{for(const key of ['echoCancellation','noiseSuppression','autoGainControl','voiceIsolation'])assert.equal(constraints[key],false,key)};
+(async()=>{
+  await context.requestDesktopDisplayMedia({video,audio:true});
+  clean(calls.at(-1).audio);clean(applied.at(-1));assert.equal(calls.at(-1).audio.restrictOwnAudio,true);assert.equal(track.contentHint,'music');assert.equal(calls.at(-1).video,video);
+  context.window.openCallDesktop=null;
+  await context.requestDesktopDisplayMedia({video,audio:{noiseSuppression:true,echoCancellation:true,autoGainControl:true,voiceIsolation:true}});
+  clean(calls.at(-1).audio);assert.equal(calls.at(-1).video,video);
+  context.settings.shareSystemAudio=false;
+  await context.requestDesktopDisplayMedia({video,audio:true});assert.equal(calls.at(-1).audio,false);
+  context.settings.shareSystemAudio=true;
+  track.applyConstraints=async()=>{throw new Error('unsupported')};
+  const result=await context.requestDesktopDisplayMedia({video,audio:true});assert.ok(result);assert.equal(warnings.length,1);
+  const linux=source.slice(source.indexOf('async function captureLinuxIsolatedSystemAudio('),source.indexOf('async function stopDesktopSystemAudio('));
+  assert.ok(linux.includes('audio:{...systemAudioConstraints(),deviceId:{exact:device.deviceId}}'));
+  assert.ok(source.includes('noiseSuppression:noiseMode==="webrtc"'),'microphone suppression preserved');
+  console.log('System audio: processing disabled on Windows/web/Linux; own-audio exclusion, video and microphone settings preserved: OK');
+})().catch(error=>{console.error(error);process.exitCode=1});

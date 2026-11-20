@@ -1060,7 +1060,7 @@ async function captureLinuxIsolatedSystemAudio(){
     await new Promise(r=>setTimeout(r,180));
     const device=await findOpenCallSystemAudioInput(info);
     return await navigator.mediaDevices.getUserMedia({
-      audio:{deviceId:{exact:device.deviceId},echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:{ideal:2},sampleRate:{ideal:48000}},
+      audio:{...systemAudioConstraints(),deviceId:{exact:device.deviceId}},
       video:false
     });
   }catch(err){
@@ -1095,6 +1095,16 @@ async function getDesktopCaptureEnvironment(){
   };
 }
 
+function systemAudioConstraints(){return {echoCancellation:false,noiseSuppression:false,autoGainControl:false,voiceIsolation:false,channelCount:{ideal:2},sampleRate:{ideal:48000}}}
+async function captureSystemDisplayMedia(constraints){
+  const audio=constraints.audio;
+  const stream=await navigator.mediaDevices.getDisplayMedia({...constraints,audio:audio?{...(typeof audio==='object'?audio:{}),...systemAudioConstraints()}:false});
+  for(const track of stream.getAudioTracks()){
+    track.contentHint='music';
+    try{await track.applyConstraints(systemAudioConstraints())}catch(error){console.warn('Áudio da transmissão: captura solicitada sem processamento; não foi possível reaplicar restrições.',error)}
+  }
+  return stream;
+}
 async function requestDesktopDisplayMedia(constraints){
   const audioRequested=constraints?.audio!==false&&constraints?.audio!=null;
   const wantsSystemAudio=audioRequested&&settings.shareSystemAudio!==false;
@@ -1126,10 +1136,10 @@ async function requestDesktopDisplayMedia(constraints){
     if(platform==="win32"||platform.includes("win")){
       // Electron 44+ respeita restrictOwnAudio e usa loopbackWithoutChrome,
       // evitando que voz/stream do próprio OpenCall volte para a transmissão.
-      return navigator.mediaDevices.getDisplayMedia({...constraints,audio:wantsSystemAudio?{restrictOwnAudio:true}:false});
+      return captureSystemDisplayMedia({...constraints,audio:wantsSystemAudio?{restrictOwnAudio:true}:false});
     }
   }
-  return navigator.mediaDevices.getDisplayMedia({...constraints,audio:wantsSystemAudio?constraints.audio:false});
+  return captureSystemDisplayMedia({...constraints,audio:wantsSystemAudio?constraints.audio:false});
 }
 
 // -----------------------------------------------------------------------------
